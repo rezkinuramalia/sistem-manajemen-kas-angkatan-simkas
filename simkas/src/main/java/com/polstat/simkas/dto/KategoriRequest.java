@@ -12,4 +12,5 @@ import java.math.BigDecimal;
 public class KategoriRequest {
     private String nama;
     private String keterangan;
+    private BigDecimal nominal;
 }

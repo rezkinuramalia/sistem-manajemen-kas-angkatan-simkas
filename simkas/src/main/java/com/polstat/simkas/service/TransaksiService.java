@@ -1,12 +1,14 @@
 package com.polstat.simkas.service;
 
-import com.polstat.simkas.dto.HistoryTransaksi; // <--- PENTING: Import ini
+import com.polstat.simkas.dto.HistoryTransaksi;
 import com.polstat.simkas.dto.TransaksiRequest;
+import com.polstat.simkas.dto.TransaksiResponse; // ✅ Fix: Gunakan TransaksiResponse
 import com.polstat.simkas.entity.*;
 import com.polstat.simkas.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal; // ✅ Fix: Import BigDecimal
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,21 +76,16 @@ public class TransaksiService {
     }
 
     // ========================
-    // LOGIC DASHBOARD / LIST DATA (Sesuai Role Berjenjang)
+    // LOGIC DASHBOARD / LIST DATA
     // ========================
     public List<Transaksi> findByUserIdAndActor(Long userId, User actor) {
-        // 1. ADMIN ANGKATAN (Role ID 1)
-        if (actor.getRole().getId() == 1) {
+        if (actor.getRole().getId() == 1) { // ADMIN
             if (actor.getAngkatan() == null) return new ArrayList<>();
             return transaksiRepository.findBendaharaTransactionsByAngkatan(actor.getAngkatan().getId());
-        }
-        // 2. BENDAHARA KELAS (Role ID 2)
-        else if (actor.getRole().getId() == 2) {
+        } else if (actor.getRole().getId() == 2) { // BENDAHARA
             if (actor.getKelas() == null) return new ArrayList<>();
             return transaksiRepository.findMahasiswaTransactionsByKelas(actor.getKelas().getId());
-        }
-        // 3. ANGGOTA / MAHASISWA (Role ID 3)
-        else {
+        } else { // MAHASISWA
             if (!actor.getId().equals(userId)) {
                 throw new RuntimeException("Kamu tidak boleh lihat transaksi orang lain!");
             }
@@ -97,16 +94,12 @@ public class TransaksiService {
     }
 
     // =================================================================
-    // [BARU] GET HISTORY (Dipanggil Controller untuk Android)
+    // GET HISTORY (Dipanggil Controller untuk Android)
     // =================================================================
     public List<HistoryTransaksi> getHistoryByUserId(Long userId) {
-        // Ambil data urut dari tanggal bayar terbaru (Pastikan Repository sudah diupdate)
         List<Transaksi> list = transaksiRepository.findByUserIdOrderByTanggalBayarDesc(userId);
-
-        // Convert Entity Transaksi -> DTO HistoryTransaksi
         return list.stream().map(t -> {
             String namaWadah = (t.getKategori() != null) ? t.getKategori().getNama() : "-";
-
             return HistoryTransaksi.builder()
                     .id(t.getId())
                     .nominal(t.getNominal())
@@ -119,44 +112,29 @@ public class TransaksiService {
     }
 
     // ========================
-    // CREATE TRANSAKSI (Bendahara/Anggota -> Upload)
+    // CREATE TRANSAKSI
     // ========================
     @Transactional
     public Transaksi createTransaksiByRole(TransaksiRequest req, String nim) {
         User actor = getUserByUsername(nim);
-
-        // Otomatis set kelas dari actor jika belum ada
         if (actor.getKelas() != null) {
             req.setIdKelas(actor.getKelas().getId());
         }
-
         return createTransaksiInternal(req, actor);
     }
 
-    // ========================
-    // CREATE TRANSAKSI (Admin Angkatan - Input Manual)
-    // ========================
     @Transactional
     public Transaksi createTransaksiAdminAngkatan(TransaksiRequest req, String nim) {
         User admin = getUserByUsername(nim);
-
         if (!"ADMIN_ANGKATAN".equals(admin.getRole().getName())) {
             throw new RuntimeException("Hanya admin angkatan yang bisa pakai endpoint ini");
         }
-
         User payer = userRepository.findById(req.getIdUser())
                 .orElseThrow(() -> new RuntimeException("User pembayar tidak ditemukan"));
-
         if (payer.getKelas() == null) {
             throw new RuntimeException("User pembayar belum memiliki kelas");
         }
-
-        if (!payer.getKelas().getAngkatan().getId().equals(admin.getAngkatan().getId())) {
-            throw new RuntimeException("User pembayar bukan berasal dari angkatan admin");
-        }
-
         req.setIdKelas(payer.getKelas().getId());
-
         return createTransaksiInternal(req, admin);
     }
 
@@ -169,21 +147,13 @@ public class TransaksiService {
         Transaksi transaksi = transaksiRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Transaksi tidak ditemukan"));
 
-        // Validasi Akses
         if (actor.getRole().getId() == 2 && !transaksi.getKelas().getId().equals(actor.getKelas().getId())) {
             throw new RuntimeException("Bendahara hanya bisa mengupdate transaksi untuk kelasnya sendiri");
         }
-        if (actor.getRole().getId() == 1 && !transaksi.getAngkatan().getId().equals(actor.getAngkatan().getId())) {
-            throw new RuntimeException("Admin angkatan hanya bisa mengupdate transaksi untuk kelas di angkatannya sendiri");
-        }
-
         if (req.getNominal() != null) transaksi.setNominal(req.getNominal());
         if (req.getKeterangan() != null) transaksi.setKeterangan(req.getKeterangan());
-        if (req.getMetodePembayaran() != null) transaksi.setMetodePembayaran(req.getMetodePembayaran());
         if (req.getIdKategori() != null)
             kategoriRepository.findById(req.getIdKategori()).ifPresent(transaksi::setKategori);
-        if (req.getTanggalBayar() != null) transaksi.setTanggalBayar(req.getTanggalBayar());
-        if (req.getJenisTransaksi() != null) transaksi.setJenisTransaksi(req.getJenisTransaksi());
 
         transaksi.setInputBy(actor);
         Transaksi updated = transaksiRepository.save(transaksi);
@@ -200,103 +170,83 @@ public class TransaksiService {
         if (actor.getRole().getId() == 2 && !transaksi.getKelas().getId().equals(actor.getKelas().getId())) {
             throw new RuntimeException("Bendahara hanya bisa menghapus transaksi untuk kelasnya sendiri");
         }
-        if (actor.getRole().getId() == 1 && !transaksi.getAngkatan().getId().equals(actor.getAngkatan().getId())) {
-            throw new RuntimeException("Admin angkatan hanya bisa menghapus transaksi untuk kelas di angkatannya sendiri");
-        }
-
         transaksiRepository.delete(transaksi);
         saveActivityLog(actor, "DELETE_TRANSAKSI", id);
     }
 
+    // ========================
+    // LOGIC VALIDASI (TERIMA/TOLAK)
+    // ========================
     @Transactional
     public Transaksi validateTransaksi(Long id, String status, String nim) {
         User actor = getUserByUsername(nim);
         Transaksi transaksi = transaksiRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Transaksi tidak ditemukan"));
 
-        if (actor.getRole().getId() == 2) { // Bendahara
-            if (!transaksi.getKelas().getId().equals(actor.getKelas().getId())) {
-                throw new RuntimeException("Bendahara hanya bisa memvalidasi transaksi kelasnya");
-            }
+        if (actor.getRole().getId() == 2 && !transaksi.getKelas().getId().equals(actor.getKelas().getId())) {
+            throw new RuntimeException("Bendahara hanya bisa memvalidasi transaksi kelasnya");
         }
 
         transaksi.setStatusValidasi(Transaksi.StatusValidasi.valueOf(status.toUpperCase()));
-
         Transaksi updated = transaksiRepository.save(transaksi);
         saveActivityLog(actor, "VALIDATE_TRANSAKSI", updated.getId());
         return updated;
     }
 
-    // ========================
-    // LAPORAN & HELPERS
-    // ========================
-    public List<Transaksi> laporanKelas(String username, Integer bulan, Integer tahun, String jenisTransaksi,
-                                        Long kelasId, boolean isAdmin) {
-        User user = getUserByUsername(username);
-        List<Transaksi> list;
+    // Method Baru: Return DTO untuk Endpoint Validasi
+    public TransaksiResponse validasiTransaksi(Long idTransaksi, String statusBaru) {
+        Transaksi transaksi = transaksiRepository.findById(idTransaksi)
+                .orElseThrow(() -> new RuntimeException("Transaksi tidak ditemukan"));
 
-        if (isAdmin) {
-            if (kelasId != null) {
-                list = findByAngkatan(user.getAngkatan().getId(), kelasId);
-                if (list.isEmpty()) {
-                    throw new RuntimeException("Kelas tidak ditemukan dalam angkatan admin");
-                }
-            } else {
-                list = findByAngkatan(user.getAngkatan().getId(), null);
-            }
-        } else {
-            list = findByKelasUsername(username);
+        if (!"VALID".equalsIgnoreCase(statusBaru) && !"REJECTED".equalsIgnoreCase(statusBaru)) {
+            throw new RuntimeException("Status tidak valid! Hanya boleh VALID atau REJECTED.");
         }
 
-        return filterByBulanJenisTahun(list, bulan, tahun, jenisTransaksi);
+        // ✅ Fix: Convert String ke Enum
+        transaksi.setStatusValidasi(Transaksi.StatusValidasi.valueOf(statusBaru.toUpperCase()));
+        transaksiRepository.save(transaksi);
+
+        return toDto(transaksi); // ✅ Fix: Panggil method toDto di bawah
     }
 
-    public List<Transaksi> laporanUser(Long userId, Integer bulan, Integer tahun, String jenisTransaksi, String username) {
-        User actor = getUserByUsername(username);
-        User targetUser = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+    // Method Baru: Get Pending List
+    @Transactional(readOnly = true)
+    public List<TransaksiResponse> getPendingTransaksiByKategori(Long idKategori) {
+        return transaksiRepository.findAll().stream()
+                .filter(t -> t.getKategori() != null && t.getKategori().getId().equals(idKategori))
+                .filter(t -> t.getStatusValidasi() != null && "PENDING".equals(t.getStatusValidasi().name()))
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
 
-        if (actor.getRole().getId() == 2 && !targetUser.getKelas().getId().equals(actor.getKelas().getId())) {
-            throw new RuntimeException("Bendahara hanya bisa lihat user sekelas");
-        }
-
-        List<Transaksi> list = findByUserId(userId);
-        return filterByBulanJenisTahun(list, bulan, tahun, jenisTransaksi);
+    // Method Baru: Hitung Total Valid
+    public BigDecimal hitungTotalPemasukanKategori(Long idKategori) {
+        return transaksiRepository.findAll().stream()
+                .filter(t -> t.getKategori() != null && t.getKategori().getId().equals(idKategori))
+                .filter(t -> t.getStatusValidasi() != null && "VALID".equals(t.getStatusValidasi().name()))
+                .map(Transaksi::getNominal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     // ========================
-    // INTERNAL CREATE (LOGIC SIMPAN)
+    // HELPER METHODS
     // ========================
     @Transactional
     private Transaksi createTransaksiInternal(TransaksiRequest req, User actor) {
         Transaksi t = new Transaksi();
-
         User payer = userRepository.findById(req.getIdUser())
                 .orElseThrow(() -> new RuntimeException("User pembayar tidak ditemukan"));
 
         t.setUser(payer);
         t.setInputBy(actor);
 
-        // Set Kelas
-        if (req.getIdKelas() != null) {
-            kelasRepository.findById(req.getIdKelas()).ifPresent(t::setKelas);
-        } else if (payer.getKelas() != null) {
-            t.setKelas(payer.getKelas());
-        } else {
-            throw new RuntimeException("Kelas harus ditentukan");
-        }
+        if (req.getIdKelas() != null) kelasRepository.findById(req.getIdKelas()).ifPresent(t::setKelas);
+        else if (payer.getKelas() != null) t.setKelas(payer.getKelas());
 
-        // Set Angkatan (Coba dari Req, kalau null ambil dari Payer)
-        if (req.getIdAngkatan() != null) {
-            angkatanRepository.findById(req.getIdAngkatan()).ifPresent(t::setAngkatan);
-        } else if (payer.getKelas() != null && payer.getKelas().getAngkatan() != null) {
-            t.setAngkatan(payer.getKelas().getAngkatan());
-        }
+        if (req.getIdAngkatan() != null) angkatanRepository.findById(req.getIdAngkatan()).ifPresent(t::setAngkatan);
+        else if (payer.getKelas() != null && payer.getKelas().getAngkatan() != null) t.setAngkatan(payer.getKelas().getAngkatan());
 
-        // Set Kategori / Wadah
-        if (req.getIdKategori() != null) {
-            kategoriRepository.findById(req.getIdKategori()).ifPresent(t::setKategori);
-        }
+        if (req.getIdKategori() != null) kategoriRepository.findById(req.getIdKategori()).ifPresent(t::setKategori);
 
         t.setBulanKas(req.getBulanKas());
         t.setTahunKas(req.getTahunKas());
@@ -306,30 +256,9 @@ public class TransaksiService {
         t.setTanggalBayar(Instant.now());
         t.setStatusValidasi(Transaksi.StatusValidasi.PENDING);
         t.setJenisTransaksi(req.getJenisTransaksi());
-
-        // [PENTING] Simpan Bukti Bayar
         t.setBuktiBayar(req.getBuktiBayar());
 
         Transaksi saved = transaksiRepository.save(t);
-
-        // Update Status Bulan (Flag Paid)
-        StatusBulan status = statusBulanRepository.findByUserIdAndBulanAndTahun(
-                payer.getId(), req.getBulanKas(), req.getTahunKas()
-        ).orElseGet(() -> {
-            StatusBulan sb = new StatusBulan();
-            sb.setUser(payer);
-            sb.setKelas(t.getKelas());
-            sb.setAngkatan(t.getAngkatan());
-            sb.setBulan(req.getBulanKas());
-            sb.setTahun(req.getTahunKas());
-            return sb;
-        });
-
-        status.setIsPaid(true);
-        status.setLastPayment(saved);
-        status.setLastPaymentAt(Instant.now());
-        statusBulanRepository.save(status);
-
         saveActivityLog(actor, "CREATE_TRANSAKSI", saved.getId());
         return saved;
     }
@@ -342,5 +271,19 @@ public class TransaksiService {
                 .targetId(targetId)
                 .build();
         activityLogRepository.save(log);
+    }
+
+    // ✅ Fix: Method Helper toDto yang sebelumnya hilang
+    private TransaksiResponse toDto(Transaksi t) {
+        TransaksiResponse r = new TransaksiResponse();
+        r.setId(t.getId());
+        r.setIdUser(t.getUser() != null ? t.getUser().getId() : null);
+        r.setNominal(t.getNominal());
+        r.setTanggalBayar(t.getTanggalBayar());
+        r.setKeterangan(t.getKeterangan());
+        r.setJenisTransaksi(t.getJenisTransaksi());
+        r.setStatusValidasi(t.getStatusValidasi() != null ? t.getStatusValidasi().name() : null);
+        r.setBuktiBayar(t.getBuktiBayar());
+        return r;
     }
 }

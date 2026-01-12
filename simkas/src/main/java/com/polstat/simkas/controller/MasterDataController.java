@@ -1,4 +1,3 @@
-// File: src/main/java/com/polstat/simkas/controller/MasterDataController.java
 package com.polstat.simkas.controller;
 
 import com.polstat.simkas.dto.*;
@@ -9,18 +8,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * Controller untuk Fitur Manajemen Data Master
- * Mengelola: Kategori (Wadah), Kelas, dan Angkatan.
- * Terhubung langsung dengan MasterDataService.
- */
 @RestController
 @RequestMapping("/api/master")
+@CrossOrigin(origins = "*")
 public class MasterDataController {
 
     private final MasterDataService masterDataService;
 
-    // Kita cukup inject Service saja, karena Repository sudah diurus oleh Service
     public MasterDataController(MasterDataService masterDataService) {
         this.masterDataService = masterDataService;
     }
@@ -29,41 +23,38 @@ public class MasterDataController {
     // 1. MANAJEMEN KATEGORI (WADAH KAS)
     // =======================================================
 
-    // Membuat Wadah Baru (Admin -> Level Angkatan, Bendahara -> Level Kelas)
+    // === TAMBAHAN WAJIB AGAR LIST MUNCUL DI ANDROID ===
+    @GetMapping("/kategori")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<KategoriDto>> getAllKategoriGeneral() {
+        // Method ini akan kita buat di Service di langkah nomor 3
+        return ResponseEntity.ok(masterDataService.getAllKategoriSesuaiRole());
+    }
+
     @PostMapping("/kategori")
     @PreAuthorize("hasAnyAuthority('ADMIN_ANGKATAN', 'BENDAHARA_KELAS')")
     public ResponseEntity<KategoriDto> createKategori(@RequestBody KategoriRequest request) {
         return ResponseEntity.ok(masterDataService.createKategori(request));
     }
 
-    // [ENDPOINT BERANDA]
-    // Menampilkan wadah yang DIBUAT/DIKELOLA oleh user.
-    // Admin Angkatan -> Lihat List Wadah Angkatan
-    // Bendahara Kelas -> Lihat List Wadah Kelas
     @GetMapping("/kategori/managed")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KategoriDto>> getKategoriManaged() {
         return ResponseEntity.ok(masterDataService.getKategoriManagedByUser());
     }
 
-    // [ENDPOINT MENU BAYAR]
-    // Menampilkan wadah TUJUAN BAYAR.
-    // Bendahara Kelas -> Lihat List Wadah Angkatan (Tempat dia setor)
-    // Mahasiswa -> Lihat List Wadah Kelas (Tempat dia bayar kas)
     @GetMapping("/kategori/payment")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KategoriDto>> getKategoriForPayment() {
         return ResponseEntity.ok(masterDataService.getKategoriForPaymentByUser());
     }
 
-    // Update Nama/Keterangan Wadah
     @PutMapping("/kategori/{id}")
     @PreAuthorize("hasAnyAuthority('ADMIN_ANGKATAN', 'BENDAHARA_KELAS')")
     public ResponseEntity<KategoriDto> updateKategori(@PathVariable Long id, @RequestBody KategoriRequest request) {
         return ResponseEntity.ok(masterDataService.updateKategori(id, request));
     }
 
-    // Hapus Wadah
     @DeleteMapping("/kategori/{id}")
     @PreAuthorize("hasAnyAuthority('ADMIN_ANGKATAN', 'BENDAHARA_KELAS')")
     public ResponseEntity<?> deleteKategori(@PathVariable Long id) {
@@ -72,7 +63,7 @@ public class MasterDataController {
     }
 
     // =======================================================
-    // 2. MANAJEMEN KELAS (CRUD)
+    // 2. MANAJEMEN KELAS & ANGKATAN
     // =======================================================
 
     @PostMapping("/kelas")
@@ -87,7 +78,6 @@ public class MasterDataController {
         return ResponseEntity.ok(masterDataService.getAllKelas());
     }
 
-    // Filter Kelas berdasarkan Angkatan tertentu (Opsional)
     @GetMapping("/kelas/by-angkatan/{angkatanId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KelasDto>> getKelasByAngkatan(@PathVariable Long angkatanId) {
@@ -106,10 +96,6 @@ public class MasterDataController {
         masterDataService.deleteKelas(id);
         return ResponseEntity.ok("Kelas berhasil dihapus");
     }
-
-    // =======================================================
-    // 3. MANAJEMEN ANGKATAN (CRUD)
-    // =======================================================
 
     @PostMapping("/angkatan")
     @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")

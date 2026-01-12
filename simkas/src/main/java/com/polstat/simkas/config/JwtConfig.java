@@ -1,65 +1,80 @@
 package com.polstat.simkas.config;
 
 import com.polstat.simkas.util.JwtUtil;
-import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 @Component
 public class JwtConfig extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final UserDetailsService userDetailsService;
 
-    public JwtConfig(JwtUtil jwtUtil, UserDetailsService userDetailsService) {
+    public JwtConfig(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
-        this.userDetailsService = userDetailsService;
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(
+            @NonNull HttpServletRequest request,
+            @NonNull HttpServletResponse response,
+            @NonNull FilterChain filterChain
+    ) throws ServletException, IOException {
+
         final String authHeader = request.getHeader("Authorization");
-        String username = null;
-        String jwt = null;
+        final String jwt;
+        final String username;
+        final String role;
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            jwt = authHeader.substring(7);
-            try {
-                username = jwtUtil.extractUsername(jwt);
-            } catch (ExpiredJwtException e) {
-                System.out.println("JWT token expired");
-            } catch (Exception e) {
-                System.out.println("JWT token invalid: " + e.getMessage());
-            }
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
         }
 
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+        jwt = authHeader.substring(7);
 
-            if (jwtUtil.validateToken(jwt)) {
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails, null, userDetails.getAuthorities());
+        try {
+            username = jwtUtil.extractUsername(jwt);
+            role = jwtUtil.extractRole(jwt); // Pastikan ini mengembalikan String (misal: "BENDAHARA_KELAS")
 
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-                System.out.println("✅ User terautentikasi: " + username +
-                        " | Authorities: " + userDetails.getAuthorities());
+            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                if (jwtUtil.validateToken(jwt)) {
+
+                    // PERBAIKAN: Pastikan role tidak null sebelum membuat Authority
+                    // Gunakan nama role mentah karena di SecurityConfig Anda pakai hasAnyAuthority('BENDAHARA_KELAS')
+                    List<SimpleGrantedAuthority> authorities = (role != null && !role.isEmpty())
+                            ? List.of(new SimpleGrantedAuthority(role))
+                            : Collections.emptyList();
+
+                    // Debugging: Print ke console backend untuk memastikan role terbaca
+                    System.out.println("🔍 JWT Check -> User: " + username + " | Role: " + role);
+
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            username,
+                            null,
+                            authorities
+                    );
+
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
+        } catch (Exception e) {
+            System.out.println("❌ Error JWT Auth: " + e.getMessage());
         }
+
         filterChain.doFilter(request, response);
     }
 }

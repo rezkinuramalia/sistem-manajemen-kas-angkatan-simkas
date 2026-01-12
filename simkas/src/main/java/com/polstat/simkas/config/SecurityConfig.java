@@ -31,21 +31,18 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Public Endpoints
-                        .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/uploads/**").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll()
 
-                        // Transaksi (PENTING: Harus authenticated agar Mahasiswa bisa akses)
-                        .requestMatchers("/api/transaksi/**").authenticated()
+                        // 1. IZINKAN GET (Ambil List) untuk SEMUA yang sudah login
+                        .requestMatchers(HttpMethod.GET, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS", "ANGGOTA")
 
-                        // Master Data (Kategori/Wadah)
-                        .requestMatchers(HttpMethod.GET, "/api/master/**").authenticated() // Semua bisa lihat list
-                        .requestMatchers(HttpMethod.POST, "/api/master/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS") // Hanya admin/bendahara yg buat
+                        // 2. IZINKAN POST, PUT, DELETE hanya untuk Admin/Bendahara
+                        .requestMatchers(HttpMethod.POST, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS")
+                        .requestMatchers(HttpMethod.PUT, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS")
+                        .requestMatchers(HttpMethod.DELETE, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS")
 
-                        // Dashboard
-                        .requestMatchers("/api/dashboard/**").authenticated()
-
-                        // User & Profile
-                        .requestMatchers("/api/users/**").authenticated()
+                        // 3. IZINKAN AKSES TRANSAKSI & VALIDASI
+                        .requestMatchers("/api/transaksi/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS", "ANGGOTA")
 
                         .anyRequest().authenticated()
                 )

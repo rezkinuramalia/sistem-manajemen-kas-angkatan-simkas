@@ -8,7 +8,7 @@ public class TesPassword {
         BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
         // 2. Password yang mau kamu pakai
-        String passwordMentah = "melody123";
+        String passwordMentah = "admin65";
 
         // 3. Generate Hash
         String passwordHash = encoder.encode(passwordMentah);
