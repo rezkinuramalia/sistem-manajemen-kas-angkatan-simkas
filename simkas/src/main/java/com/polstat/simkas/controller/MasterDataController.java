@@ -3,7 +3,6 @@ package com.polstat.simkas.controller;
 
 import com.polstat.simkas.dto.*;
 import com.polstat.simkas.service.MasterDataService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -12,7 +11,8 @@ import java.util.List;
 
 /**
  * Controller untuk Fitur Manajemen Data Master
- * (Kategori, Kelas, Angkatan)
+ * Mengelola: Kategori (Wadah), Kelas, dan Angkatan.
+ * Terhubung langsung dengan MasterDataService.
  */
 @RestController
 @RequestMapping("/api/master")
@@ -20,53 +20,76 @@ public class MasterDataController {
 
     private final MasterDataService masterDataService;
 
+    // Kita cukup inject Service saja, karena Repository sudah diurus oleh Service
     public MasterDataController(MasterDataService masterDataService) {
         this.masterDataService = masterDataService;
     }
 
-    // === KATEGORI ===
+    // =======================================================
+    // 1. MANAJEMEN KATEGORI (WADAH KAS)
+    // =======================================================
 
+    // Membuat Wadah Baru (Admin -> Level Angkatan, Bendahara -> Level Kelas)
     @PostMapping("/kategori")
-    @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_ANGKATAN', 'BENDAHARA_KELAS')")
     public ResponseEntity<KategoriDto> createKategori(@RequestBody KategoriRequest request) {
-        return new ResponseEntity<>(masterDataService.createKategori(request), HttpStatus.CREATED);
+        return ResponseEntity.ok(masterDataService.createKategori(request));
     }
 
-    @GetMapping("/kategori")
-    @PreAuthorize("isAuthenticated()") // Semua user boleh lihat
-    public ResponseEntity<List<KategoriDto>> getAllKategori() {
-        return ResponseEntity.ok(masterDataService.getAllKategori());
+    // [ENDPOINT BERANDA]
+    // Menampilkan wadah yang DIBUAT/DIKELOLA oleh user.
+    // Admin Angkatan -> Lihat List Wadah Angkatan
+    // Bendahara Kelas -> Lihat List Wadah Kelas
+    @GetMapping("/kategori/managed")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<KategoriDto>> getKategoriManaged() {
+        return ResponseEntity.ok(masterDataService.getKategoriManagedByUser());
     }
 
+    // [ENDPOINT MENU BAYAR]
+    // Menampilkan wadah TUJUAN BAYAR.
+    // Bendahara Kelas -> Lihat List Wadah Angkatan (Tempat dia setor)
+    // Mahasiswa -> Lihat List Wadah Kelas (Tempat dia bayar kas)
+    @GetMapping("/kategori/payment")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<KategoriDto>> getKategoriForPayment() {
+        return ResponseEntity.ok(masterDataService.getKategoriForPaymentByUser());
+    }
+
+    // Update Nama/Keterangan Wadah
     @PutMapping("/kategori/{id}")
-    @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_ANGKATAN', 'BENDAHARA_KELAS')")
     public ResponseEntity<KategoriDto> updateKategori(@PathVariable Long id, @RequestBody KategoriRequest request) {
         return ResponseEntity.ok(masterDataService.updateKategori(id, request));
     }
 
+    // Hapus Wadah
     @DeleteMapping("/kategori/{id}")
-    @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
+    @PreAuthorize("hasAnyAuthority('ADMIN_ANGKATAN', 'BENDAHARA_KELAS')")
     public ResponseEntity<?> deleteKategori(@PathVariable Long id) {
         masterDataService.deleteKategori(id);
-        return ResponseEntity.ok("Kategori deleted successfully");
+        return ResponseEntity.ok("Kategori berhasil dihapus");
     }
 
-    // === KELAS ===
+    // =======================================================
+    // 2. MANAJEMEN KELAS (CRUD)
+    // =======================================================
 
     @PostMapping("/kelas")
     @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
     public ResponseEntity<KelasDto> createKelas(@RequestBody KelasRequest request) {
-        return new ResponseEntity<>(masterDataService.createKelas(request), HttpStatus.CREATED);
+        return ResponseEntity.ok(masterDataService.createKelas(request));
     }
 
     @GetMapping("/kelas")
-    @PreAuthorize("isAuthenticated()") // Semua user boleh lihat
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KelasDto>> getAllKelas() {
         return ResponseEntity.ok(masterDataService.getAllKelas());
     }
 
+    // Filter Kelas berdasarkan Angkatan tertentu (Opsional)
     @GetMapping("/kelas/by-angkatan/{angkatanId}")
-    @PreAuthorize("isAuthenticated()") // Semua user boleh lihat
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KelasDto>> getKelasByAngkatan(@PathVariable Long angkatanId) {
         return ResponseEntity.ok(masterDataService.getKelasByAngkatan(angkatanId));
     }
@@ -81,19 +104,21 @@ public class MasterDataController {
     @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
     public ResponseEntity<?> deleteKelas(@PathVariable Long id) {
         masterDataService.deleteKelas(id);
-        return ResponseEntity.ok("Kelas deleted successfully");
+        return ResponseEntity.ok("Kelas berhasil dihapus");
     }
 
-    // === ANGKATAN ===
+    // =======================================================
+    // 3. MANAJEMEN ANGKATAN (CRUD)
+    // =======================================================
 
     @PostMapping("/angkatan")
     @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
     public ResponseEntity<AngkatanDto> createAngkatan(@RequestBody AngkatanRequest request) {
-        return new ResponseEntity<>(masterDataService.createAngkatan(request), HttpStatus.CREATED);
+        return ResponseEntity.ok(masterDataService.createAngkatan(request));
     }
 
     @GetMapping("/angkatan")
-    @PreAuthorize("isAuthenticated()") // Semua user boleh lihat
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<AngkatanDto>> getAllAngkatan() {
         return ResponseEntity.ok(masterDataService.getAllAngkatan());
     }
@@ -108,6 +133,6 @@ public class MasterDataController {
     @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
     public ResponseEntity<?> deleteAngkatan(@PathVariable Long id) {
         masterDataService.deleteAngkatan(id);
-        return ResponseEntity.ok("Angkatan deleted successfully");
+        return ResponseEntity.ok("Angkatan berhasil dihapus");
     }
 }

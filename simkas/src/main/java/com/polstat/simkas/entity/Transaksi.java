@@ -23,12 +23,12 @@ public class Transaksi {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // owner: mahasiswa yang pembayaran (mapped manually via id)
+    // Relasi ke User (Pembayar)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_user", nullable = false)
     private User user;
 
-    // who input the record (bendahara or admin) - can be null if data migrated
+    // Relasi ke User (Yang menginput data, bisa null)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_input_by")
     private User inputBy;
@@ -57,18 +57,25 @@ public class Transaksi {
     @Column(name = "tanggal_bayar", nullable = false)
     private Instant tanggalBayar = Instant.now();
 
+    @Column(name = "metode_pembayaran")
     private String metodePembayaran;
 
-    private String buktiUrl;
+    // === BAGIAN INI YANG PENTING DIPERBAIKI ===
+    // Sebelumnya namanya buktiUrl, kita ganti jadi buktiBayar
+    // agar cocok dengan Controller dan DTO
+    @Column(name = "bukti_bayar")
+    private String buktiBayar;
+    // ==========================================
 
     @Column(columnDefinition = "TEXT")
     private String keterangan;
 
     // Jenis transaksi: PEMASUKAN atau PENGELUARAN
-    @Column(name = "jenis_transaksi", nullable = false, columnDefinition = "VARCHAR(20) COMMENT 'Pilih antara PEMASUKAN atau PENGELUARAN'")
+    @Column(name = "jenis_transaksi", nullable = false, length = 20)
     private String jenisTransaksi;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "status_validasi")
     private StatusValidasi statusValidasi = StatusValidasi.VALID;
 
     @Column(name = "created_at", updatable = false)

@@ -12,4 +12,6 @@ public class UserProfileUpdateRequest {
     private String nama;
     private String email;
     private String phone;
+    private Long kelasId;
+    private Long angkatanId;
 }

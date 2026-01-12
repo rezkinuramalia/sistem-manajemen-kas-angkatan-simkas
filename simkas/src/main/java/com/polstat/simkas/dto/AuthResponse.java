@@ -10,4 +10,7 @@ import lombok.NoArgsConstructor;
 public class AuthResponse {
     private String token;
     private String username;
+    private Long id;  // ✅ PERBAIKAN: Tambahkan user ID
+    private String role;  // ✅ PERBAIKAN: Tambahkan role
 }
+

@@ -19,5 +19,9 @@ public class TransaksiResponse {
     private Instant tanggalBayar;
     private String keterangan;
     private String statusValidasi;
-    private String jenisTransaksi; // <<< tambahan
+    private String jenisTransaksi;
+
+    // === TAMBAHAN ===
+    // Field ini wajib ada agar Android bisa mengambil nama file gambar dari API
+    private String buktiBayar;
 }

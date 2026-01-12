@@ -8,8 +8,6 @@ import java.time.Instant;
 /**
  * DTO untuk create dan update transaksi.
  * Digunakan oleh ADMIN_ANGKATAN dan BENDAHARA_KELAS.
- * - BENDAHARA_KELAS hanya bisa buat/ubah transaksi untuk kelasnya sendiri.
- * - ADMIN_ANGKATAN bisa akses semua kelas.
  */
 @Data
 public class TransaksiRequest {
@@ -32,4 +30,8 @@ public class TransaksiRequest {
 
     // Tambahan baru: jenis transaksi PEMASUKAN / PENGELUARAN
     private String jenisTransaksi;
+
+    // === TAMBAHAN UNTUK UPLOAD BUKTI BAYAR ===
+    // Field ini akan otomatis dibuatkan getter/setternya oleh @Data
+    private String buktiBayar;
 }

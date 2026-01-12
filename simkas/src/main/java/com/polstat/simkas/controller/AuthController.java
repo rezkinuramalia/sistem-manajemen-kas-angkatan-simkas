@@ -40,8 +40,15 @@ public class AuthController {
         );
 
         UserDetails ud = (UserDetails) auth.getPrincipal();
-        String token = jwtUtil.generateToken(ud.getUsername());
-        return ResponseEntity.ok(new AuthResponse(token, ud.getUsername()));
+
+        // ✅ PERBAIKAN: Ambil user object untuk mendapatkan id dan role
+        User user = userService.getUserByUsername(ud.getUsername());
+        String roleName = user.getRole() != null ? user.getRole().getName() : "ANGGOTA";
+
+
+        String token = jwtUtil.generateToken(ud.getUsername(), roleName);
+        
+        return ResponseEntity.ok(new AuthResponse(token, ud.getUsername(), user.getId(), roleName));
     }
 
     @PostMapping("/register")

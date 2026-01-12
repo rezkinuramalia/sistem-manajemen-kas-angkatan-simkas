@@ -2,6 +2,7 @@
 package com.polstat.simkas.dto;
 
 import lombok.Data;
+import java.math.BigDecimal;
 
 /**
  * DTO untuk request body C/U Kategori

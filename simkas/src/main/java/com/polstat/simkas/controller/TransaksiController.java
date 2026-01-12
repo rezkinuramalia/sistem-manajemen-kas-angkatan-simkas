@@ -1,37 +1,123 @@
 package com.polstat.simkas.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.polstat.simkas.dto.HistoryTransaksi;
 import com.polstat.simkas.dto.TransaksiRequest;
 import com.polstat.simkas.dto.TransaksiResponse;
 import com.polstat.simkas.entity.Transaksi;
 import com.polstat.simkas.entity.User;
 import com.polstat.simkas.service.TransaksiService;
+import com.polstat.simkas.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/transaksi")
+@RequestMapping("/api/transaksi")// Hapus "/api" jika di application.properties sudah ada context-path, atau sesuaikan
 public class TransaksiController {
 
-    private final TransaksiService transaksiService;
+    @Autowired
+    private TransaksiService transaksiService;
 
-    public TransaksiController(TransaksiService transaksiService) {
-        this.transaksiService = transaksiService;
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private ObjectMapper objectMapper; // Untuk parsing JSON manual
+
+    // Lokasi folder penyimpanan gambar
+    private final Path fileStorageLocation = Paths.get("uploads/bukti-bayar").toAbsolutePath().normalize();
+
+    public TransaksiController() {
+        // Buat folder upload otomatis saat aplikasi jalan
+        try {
+            Files.createDirectories(this.fileStorageLocation);
+        } catch (Exception ex) {
+            throw new RuntimeException("Tidak bisa membuat folder upload!", ex);
+        }
     }
 
-    // =======================
-    // ADMIN_ANGKATAN - lihat transaksi seluruh angkatan / filter kelas
-    // =======================
+    // =================================================================
+    //  1. CREATE TRANSAKSI (UPLOAD BUKTI BAYAR) - UNTUK SEMUA ROLE
+    // =================================================================
+    // Endpoint ini menangani Multipart (File + Data JSON)
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> createTransaksi(
+            @RequestPart("data") String transaksiJson,  // Data JSON diterima sebagai String
+            @RequestPart(value = "file", required = false) MultipartFile file, // File Gambar (Opsional)
+            Authentication authentication) {
+
+        try {
+            // 1. Convert JSON String ke Object TransaksiRequest
+            TransaksiRequest req = objectMapper.readValue(transaksiJson, TransaksiRequest.class);
+            String username = authentication.getName();
+
+            // 2. Proses File Gambar (Jika ada)
+            String fileName = null;
+            if (file != null && !file.isEmpty()) {
+                // Generate nama file unik (misal: uuid_bukti.jpg)
+                String originalName = file.getOriginalFilename();
+                String ext = "";
+                if(originalName != null && originalName.contains(".")) {
+                    ext = originalName.substring(originalName.lastIndexOf("."));
+                }
+                fileName = UUID.randomUUID().toString() + ext;
+
+                // Simpan file ke folder
+                Path targetLocation = this.fileStorageLocation.resolve(fileName);
+                Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
+
+                // Set nama file ke request agar disimpan service
+                req.setBuktiBayar(fileName); // Pastikan DTO TransaksiRequest punya field ini
+            }
+
+            // 3. Panggil Service
+            // Gunakan method createTransaksiByRole agar logic role (Bendahara/Mahasiswa) dihandle service
+            Transaksi saved = transaksiService.createTransaksiByRole(req, username);
+
+            return ResponseEntity.ok(toResponse(saved));
+
+        } catch (IOException e) {
+            return ResponseEntity.badRequest().body("Gagal upload file atau parsing data: " + e.getMessage());
+        }
+    }
+
+    // =================================================================
+    //  2. GET HISTORY TRANSAKSI USER SENDIRI (Fitur Android History)
+    // =================================================================
+    @GetMapping("/history")
+    public ResponseEntity<List<HistoryTransaksi>> getMyHistory(Authentication authentication) {
+        User user = userService.getUserByUsername(authentication.getName());
+
+        // Panggil service untuk ambil transaksi user ini & convert ke DTO History
+        // Pastikan transaksiService punya method getHistoryByUserId
+        List<HistoryTransaksi> history = transaksiService.getHistoryByUserId(user.getId());
+
+        return ResponseEntity.ok(history);
+    }
+
+    // =================================================================
+    //  3. ADMIN ANGKATAN - LIHAT SEMUA TRANSAKSI
+    // =================================================================
     @GetMapping("/angkatan")
     @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
     public ResponseEntity<?> getTransaksiAngkatan(Authentication authentication,
                                                   @RequestParam(required = false) Long kelasId) {
         String username = authentication.getName();
-        User admin = transaksiService.getUserByUsername(username);
+        User admin = userService.getUserByUsername(username);
 
         if (admin.getAngkatan() == null) {
             return ResponseEntity.badRequest().body("Admin angkatan tidak memiliki angkatan yang terdaftar");
@@ -44,20 +130,9 @@ public class TransaksiController {
         return ResponseEntity.ok(list);
     }
 
-    // =======================
-    // ADMIN_ANGKATAN - tambah transaksi untuk seangkatan
-    // =======================
-    @PostMapping("/angkatan/kelas")
-    @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
-    public ResponseEntity<?> createTransaksiAngkatan(@RequestBody TransaksiRequest req, Authentication authentication) {
-        String username = authentication.getName();
-        Transaksi saved = transaksiService.createTransaksiAdminAngkatan(req, username);
-        return ResponseEntity.ok(toResponse(saved));
-    }
-
-    // =======================
-    // BENDAHARA_KELAS - lihat / tambah transaksi kelasnya sendiri
-    // =======================
+    // =================================================================
+    //  4. BENDAHARA KELAS - LIHAT TRANSAKSI KELASNYA
+    // =================================================================
     @GetMapping("/kelas")
     @PreAuthorize("hasAuthority('BENDAHARA_KELAS')")
     public ResponseEntity<?> getTransaksiKelas(Authentication authentication) {
@@ -68,38 +143,18 @@ public class TransaksiController {
         return ResponseEntity.ok(list);
     }
 
-    @PostMapping("/kelas")
-    @PreAuthorize("hasAuthority('BENDAHARA_KELAS')")
-    public ResponseEntity<?> createTransaksiBendahara(@RequestBody TransaksiRequest req, Authentication authentication) {
-        String username = authentication.getName();
-        Transaksi saved = transaksiService.createTransaksiByRole(req, username);
-        return ResponseEntity.ok(toResponse(saved));
-    }
-
-    // =======================
-    // ANGGOTA / BENDAHARA / ADMIN lihat transaksi user
-    // =======================
-    @GetMapping("/me/{userId}")
+    // =================================================================
+    //  5. LIHAT TRANSAKSI USER TERTENTU (DETAIL)
+    // =================================================================
+    @GetMapping("/user/{userId}")
     @PreAuthorize("hasAnyAuthority('ANGGOTA','BENDAHARA_KELAS','ADMIN_ANGKATAN')")
     public ResponseEntity<?> byUser(@PathVariable Long userId, Authentication authentication) {
         String username = authentication.getName();
-        User actor = transaksiService.getUserByUsername(username);
+        User actor = userService.getUserByUsername(username);
 
-        // cek role & batasan akses
+        // Validasi: Anggota biasa gaboleh liat punya orang lain
         if (actor.getRole().getId() == 3 && !actor.getId().equals(userId)) {
-            return ResponseEntity.status(403).body("Kamu tidak boleh lihat transaksi orang lain!");
-        }
-        if (actor.getRole().getId() == 2) {
-            User targetUser = transaksiService.getUserById(userId);
-            if (!targetUser.getKelas().getId().equals(actor.getKelas().getId())) {
-                return ResponseEntity.status(403).body("Bendahara hanya bisa lihat transaksi anggota di kelasnya sendiri!");
-            }
-        }
-        if (actor.getRole().getId() == 1) {
-            User targetUser = transaksiService.getUserById(userId);
-            if (!targetUser.getAngkatan().getId().equals(actor.getAngkatan().getId())) {
-                return ResponseEntity.status(403).body("Admin angkatan hanya bisa lihat transaksi anggota di angkatannya sendiri!");
-            }
+            return ResponseEntity.status(403).body("Akses ditolak.");
         }
 
         List<TransaksiResponse> list = transaksiService.findByUserIdAndActor(userId, actor)
@@ -108,94 +163,32 @@ public class TransaksiController {
         return ResponseEntity.ok(list);
     }
 
-    // =======================
-    // UPDATE, DELETE, VALIDATE (ADMIN_ANGKATAN / BENDAHARA_KELAS)
-    // =======================
-    @PutMapping("/kelas/{id}")
+    // =================================================================
+    //  6. UPDATE, DELETE, VALIDATE (Admin & Bendahara)
+    // =================================================================
+    @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('BENDAHARA_KELAS','ADMIN_ANGKATAN')")
-    public ResponseEntity<?> update(@PathVariable Long id,
-                                    @RequestBody TransaksiRequest req,
-                                    Authentication authentication) {
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestBody TransaksiRequest req, Authentication authentication) {
         String username = authentication.getName();
         Transaksi updated = transaksiService.updateTransaksiByRole(id, req, username);
         return ResponseEntity.ok(toResponse(updated));
     }
 
-    @DeleteMapping("/kelas/{id}")
+    @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('BENDAHARA_KELAS','ADMIN_ANGKATAN')")
     public ResponseEntity<?> delete(@PathVariable Long id, Authentication authentication) {
         String username = authentication.getName();
         transaksiService.deleteTransaksiByRole(id, username);
-        return ResponseEntity.ok("deleted");
+        return ResponseEntity.ok("Deleted successfully");
     }
 
     @PutMapping("/validate/{id}")
     @PreAuthorize("hasAnyAuthority('BENDAHARA_KELAS','ADMIN_ANGKATAN')")
-    public ResponseEntity<?> validate(@PathVariable Long id,
-                                      @RequestParam String status,
-                                      Authentication authentication) {
+    public ResponseEntity<?> validate(@PathVariable Long id, @RequestParam String status, Authentication authentication) {
         String username = authentication.getName();
         Transaksi updated = transaksiService.validateTransaksi(id, status, username);
         return ResponseEntity.ok(toResponse(updated));
     }
-
-    // =======================
-// LAPORAN
-// =======================
-    @GetMapping("/laporan/angkatan")
-    @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
-    public ResponseEntity<?> laporanAngkatan(@RequestParam(required = false) Integer bulan,
-                                             @RequestParam Integer tahun,
-                                             @RequestParam(required = false) String jenisTransaksi,
-                                             Authentication authentication) {
-        String username = authentication.getName();
-        List<TransaksiResponse> list = transaksiService.laporanAngkatan(username, bulan, tahun, jenisTransaksi)
-                .stream().map(this::toResponse)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(list);
-    }
-
-    @GetMapping("/laporan/kelas/admin")
-    @PreAuthorize("hasAuthority('ADMIN_ANGKATAN')")
-    public ResponseEntity<?> laporanKelasAdmin(@RequestParam(required = false) Integer bulan,
-                                               @RequestParam Integer tahun,
-                                               @RequestParam(required = false) String jenisTransaksi,
-                                               @RequestParam(required = false) Long kelasId,
-                                               Authentication authentication) {
-        String username = authentication.getName();
-        List<TransaksiResponse> list = transaksiService.laporanKelas(username, bulan, tahun, jenisTransaksi, kelasId, true)
-                .stream().map(this::toResponse)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(list);
-    }
-
-    @GetMapping("/laporan/kelas")
-    @PreAuthorize("hasAuthority('BENDAHARA_KELAS')")
-    public ResponseEntity<?> laporanKelasBendahara(@RequestParam(required = false) Integer bulan,
-                                                   @RequestParam Integer tahun,
-                                                   @RequestParam(required = false) String jenisTransaksi,
-                                                   Authentication authentication) {
-        String username = authentication.getName();
-        List<TransaksiResponse> list = transaksiService.laporanKelas(username, bulan, tahun, jenisTransaksi, null, false)
-                .stream().map(this::toResponse)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(list);
-    }
-
-    @GetMapping("/laporan/user")
-    @PreAuthorize("hasAnyAuthority('BENDAHARA_KELAS','ADMIN_ANGKATAN')")
-    public ResponseEntity<?> laporanUser(@RequestParam Long userId,
-                                         @RequestParam(required = false) Integer bulan,
-                                         @RequestParam Integer tahun,
-                                         @RequestParam(required = false) String jenisTransaksi,
-                                         Authentication authentication) {
-        String username = authentication.getName();
-        List<TransaksiResponse> list = transaksiService.laporanUser(userId, bulan, tahun, jenisTransaksi, username)
-                .stream().map(this::toResponse)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(list);
-    }
-
 
     // =======================
     // Helper: Transaksi -> DTO
@@ -204,18 +197,19 @@ public class TransaksiController {
         TransaksiResponse r = new TransaksiResponse();
         r.setId(t.getId());
         r.setIdUser(t.getUser() != null ? t.getUser().getId() : null);
-        r.setIdInputBy(t.getInputBy() != null ? t.getInputBy().getId() : null);
-        r.setIdKelas(t.getKelas() != null ? t.getKelas().getId() : null);
-        r.setIdAngkatan(t.getAngkatan() != null ? t.getAngkatan().getId() : null);
-        r.setIdKategori(t.getKategori() != null ? t.getKategori().getId() : null);
-        r.setBulanKas(t.getBulanKas());
-        r.setTahunKas(t.getTahunKas());
         r.setNominal(t.getNominal());
-        r.setTanggalBayar(t.getTanggalBayar());
+        r.setTanggalBayar(t.getTanggalBayar()); // FIX: Langsung masukkan Instant
         r.setKeterangan(t.getKeterangan());
         r.setJenisTransaksi(t.getJenisTransaksi());
         r.setStatusValidasi(t.getStatusValidasi() != null ? t.getStatusValidasi().name() : null);
+        r.setBuktiBayar(t.getBuktiBayar());
+
+        // Info Kategori/Wadah
+        if(t.getKategori() != null) {
+            // Bisa tambahkan nama kategori di TransaksiResponse jika mau
+            // r.setNamaKategori(t.getKategori().getNama());
+        }
+
         return r;
     }
 }
-

@@ -14,6 +14,6 @@ public class KelasDto {
     private Long id;
     private String kode;
     private String nama;
-    private Long angkatanId;
-    private String namaAngkatan;
+    private Long angkatanId;      // camelCase
+    private String namaAngkatan;  // camelCase
 }
