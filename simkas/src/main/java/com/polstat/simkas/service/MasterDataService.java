@@ -87,8 +87,33 @@ public class MasterDataService {
         System.out.println("DEBUG: Fetching List for User: " + user.getNama() + " | Role: " + role);
 
         if ("ANGGOTA".equals(role)) {
+            // Mahasiswa hanya melihat wadah untuk dibayar (Wadah Kelas)
             return getKategoriForPaymentByUser();
+        } else if ("BENDAHARA_KELAS".equals(role)) {
+            // [PERBAIKAN UTAMA DI SINI]
+            // Bendahara Kelas adalah unik: Dia PENGELOLA (untuk mhs) sekaligus PEMBAYAR (ke admin)
+            // Jadi kita gabungkan kedua list tersebut.
+
+            // 1. Ambil wadah yang dia kelola (Wadah Kelas buatannya)
+            List<KategoriDto> managed = getKategoriManagedByUser();
+
+            // 2. Ambil wadah tempat dia harus bayar (Wadah Angkatan buatan Admin)
+            List<KategoriDto> payment = getKategoriForPaymentByUser();
+
+            // 3. Gabungkan list (menggunakan Set untuk menghindari duplikasi jika ada ID yang sama)
+            java.util.Set<Long> addedIds = new java.util.HashSet<>();
+            List<KategoriDto> combinedList = new java.util.ArrayList<>();
+
+            for (KategoriDto k : payment) {
+                if (addedIds.add(k.getId())) combinedList.add(k);
+            }
+            for (KategoriDto k : managed) {
+                if (addedIds.add(k.getId())) combinedList.add(k);
+            }
+
+            return combinedList;
         } else {
+            // Admin Angkatan hanya melihat wadah yang dia kelola
             return getKategoriManagedByUser();
         }
     }

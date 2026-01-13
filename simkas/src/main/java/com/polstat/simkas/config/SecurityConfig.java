@@ -25,6 +25,22 @@ public class SecurityConfig {
         this.jwtConfig = jwtConfig;
     }
 
+    // ==========================================================
+    // BAGIAN INI YANG HILANG SEHINGGA MENYEBABKAN ERROR
+    // ==========================================================
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+    // ==========================================================
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -34,14 +50,17 @@ public class SecurityConfig {
                         // 1. Auth public
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // --- TAMBAHAN: Izinkan akses public untuk list kelas & angkatan (Buat Register) ---
+                        // 2. Public Access untuk Register (Kelas & Angkatan)
                         .requestMatchers(HttpMethod.GET, "/api/master/kelas").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/master/angkatan").permitAll()
-                        // -------------------------------------------------------------------------------
 
-                        // 2. Master Data (Sisanya butuh login)
+                        // --- [PERBAIKAN UTAMA] IZINKAN AKSES GAMBAR ---
+                        .requestMatchers("/uploads/**").permitAll()
+                        // ----------------------------------------------
+
+                        // 3. Master Data (Sisanya butuh login)
                         .requestMatchers(HttpMethod.GET, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS", "ANGGOTA")
-                        // ... (kode lainnya tetap sama)
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtConfig, UsernamePasswordAuthenticationFilter.class);

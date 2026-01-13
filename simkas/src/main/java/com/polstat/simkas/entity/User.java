@@ -27,7 +27,7 @@ public class User {
     private String email;
 
     @Column(nullable = false)
-    private String password; // store bcrypt hash in production
+    private String password;
 
     private String phone;
 
@@ -43,11 +43,18 @@ public class User {
     @JoinColumn(name = "angkatan_id")
     private Angkatan angkatan;
 
+    // ==========================================
+    // PERBAIKAN WAJIB ADA DI BAWAH INI (3 Baris)
+    // ==========================================
+
+    @Builder.Default  // <--- JANGAN DIHAPUS
     private Boolean aktif = true;
 
+    @Builder.Default  // <--- JANGAN DIHAPUS
     @Column(name = "created_at", updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Builder.Default  // <--- JANGAN DIHAPUS
     @Column(name = "updated_at")
     private Instant updatedAt = Instant.now();
 

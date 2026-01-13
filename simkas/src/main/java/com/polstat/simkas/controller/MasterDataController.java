@@ -22,11 +22,9 @@ public class MasterDataController {
     // 1. MANAJEMEN KATEGORI (WADAH KAS)
     // =======================================================
 
-    // === TAMBAHAN WAJIB AGAR LIST MUNCUL DI ANDROID ===
     @GetMapping("/kategori")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KategoriDto>> getAllKategoriGeneral() {
-        // Method ini akan kita buat di Service di langkah nomor 3
         return ResponseEntity.ok(masterDataService.getAllKategoriSesuaiRole());
     }
 
@@ -71,8 +69,8 @@ public class MasterDataController {
         return ResponseEntity.ok(masterDataService.createKelas(request));
     }
 
+    // [PERBAIKAN UTAMA] Hapus @PreAuthorize agar bisa diakses Publik (Register)
     @GetMapping("/kelas")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KelasDto>> getAllKelas() {
         return ResponseEntity.ok(masterDataService.getAllKelas());
     }
@@ -102,8 +100,8 @@ public class MasterDataController {
         return ResponseEntity.ok(masterDataService.createAngkatan(request));
     }
 
+    // [PERBAIKAN UTAMA] Hapus @PreAuthorize agar bisa diakses Publik (Register)
     @GetMapping("/angkatan")
-    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<AngkatanDto>> getAllAngkatan() {
         return ResponseEntity.ok(masterDataService.getAllAngkatan());
     }

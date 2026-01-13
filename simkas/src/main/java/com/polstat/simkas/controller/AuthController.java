@@ -7,6 +7,7 @@ import com.polstat.simkas.entity.User;
 import com.polstat.simkas.service.MyUserDetailsService;
 import com.polstat.simkas.service.UserService;
 import com.polstat.simkas.util.JwtUtil;
+import org.springframework.dao.DataIntegrityViolationException; // Import ini penting
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -35,32 +36,45 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest req) {
-        Authentication auth = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword())
-        );
+        try {
+            Authentication auth = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword())
+            );
 
-        UserDetails ud = (UserDetails) auth.getPrincipal();
+            UserDetails ud = (UserDetails) auth.getPrincipal();
+            User user = userService.getUserByUsername(ud.getUsername());
+            String roleName = user.getRole() != null ? user.getRole().getName() : "ANGGOTA";
 
-        // ✅ PERBAIKAN: Ambil user object untuk mendapatkan id dan role
-        User user = userService.getUserByUsername(ud.getUsername());
-        String roleName = user.getRole() != null ? user.getRole().getName() : "ANGGOTA";
+            String token = jwtUtil.generateToken(ud.getUsername(), roleName);
 
-
-        String token = jwtUtil.generateToken(ud.getUsername(), roleName);
-        
-        return ResponseEntity.ok(new AuthResponse(token, ud.getUsername(), user.getId(), roleName));
+            return ResponseEntity.ok(new AuthResponse(token, ud.getUsername(), user.getId(), roleName));
+        } catch (Exception e) {
+            return ResponseEntity.status(401).body("Login Gagal: Username atau Password salah.");
+        }
     }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest req) {
-        // create User entity and save
-        User u = User.builder()
-                .nim(req.getNim())
-                .nama(req.getNama())
-                .email(req.getEmail())
-                .password(req.getPassword())
-                .build();
-        User saved = userService.createUser(u, req.getRoleId(), req.getKelasId(), req.getAngkatanId());
-        return ResponseEntity.ok("User created with id: " + saved.getId());
+        try {
+            // Buat entity User
+            User u = User.builder()
+                    .nim(req.getNim())
+                    .nama(req.getNama())
+                    .email(req.getEmail())
+                    .password(req.getPassword())
+                    .build();
+
+            // Simpan ke database
+            User saved = userService.createUser(u, req.getRoleId(), req.getKelasId(), req.getAngkatanId());
+
+            return ResponseEntity.ok("Registrasi Berhasil! ID User: " + saved.getId());
+
+        } catch (DataIntegrityViolationException e) {
+            // INI PERBAIKANNYA: Tangkap error duplicate entry
+            return ResponseEntity.badRequest().body("Gagal: NIM atau Email sudah terdaftar. Silakan langsung Login.");
+        } catch (Exception e) {
+            // Tangkap error lain
+            return ResponseEntity.status(500).body("Terjadi kesalahan sistem: " + e.getMessage());
+        }
     }
 }
