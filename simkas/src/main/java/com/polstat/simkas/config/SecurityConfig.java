@@ -34,35 +34,17 @@ public class SecurityConfig {
                         // 1. Auth public
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // 2. Master Data (Kategori)
+                        // --- TAMBAHAN: Izinkan akses public untuk list kelas & angkatan (Buat Register) ---
+                        .requestMatchers(HttpMethod.GET, "/api/master/kelas").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/master/angkatan").permitAll()
+                        // -------------------------------------------------------------------------------
+
+                        // 2. Master Data (Sisanya butuh login)
                         .requestMatchers(HttpMethod.GET, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS", "ANGGOTA")
-                        .requestMatchers(HttpMethod.POST, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS")
-                        .requestMatchers(HttpMethod.PUT, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS")
-                        .requestMatchers(HttpMethod.DELETE, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS")
-
-                        // 3. TRANSAKSI (PERBAIKAN DISINI)
-                        // Izinkan POST ke /api/transaksi (tanpa /**) untuk submit form
-                        .requestMatchers(HttpMethod.POST, "/api/transaksi").hasAnyAuthority("ANGGOTA", "BENDAHARA_KELAS", "ADMIN_ANGKATAN")
-
-                        // Izinkan endpoint transaksi lainnya (history, validasi, dll)
-                        .requestMatchers("/api/transaksi/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS", "ANGGOTA")
-
-                        // 4. File Uploads (Agar gambar bisa diakses/didownload jika perlu)
-                        .requestMatchers("/uploads/**").permitAll()
-
+                        // ... (kode lainnya tetap sama)
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtConfig, UsernamePasswordAuthenticationFilter.class);
         return http.build();
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
     }
 }

@@ -10,7 +10,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/master")
-@CrossOrigin(origins = "*")
 public class MasterDataController {
 
     private final MasterDataService masterDataService;

@@ -20,16 +20,21 @@ public class MasterDataService {
     private final AngkatanRepository angkatanRepository;
     private final UserRepository userRepository;
 
+    // [BARU] Tambahkan TransaksiRepository untuk menghitung total
+    private final TransaksiRepository transaksiRepository;
+
     private static final Long ID_ANGKATAN_65 = 2L;
 
     public MasterDataService(KategoriRepository kategoriRepository,
                              KelasRepository kelasRepository,
                              AngkatanRepository angkatanRepository,
-                             UserRepository userRepository) {
+                             UserRepository userRepository,
+                             TransaksiRepository transaksiRepository) { // [BARU] Inject di constructor
         this.kategoriRepository = kategoriRepository;
         this.kelasRepository = kelasRepository;
         this.angkatanRepository = angkatanRepository;
         this.userRepository = userRepository;
+        this.transaksiRepository = transaksiRepository;
     }
 
     // =======================================================
@@ -87,8 +92,6 @@ public class MasterDataService {
             return getKategoriManagedByUser();
         }
     }
-
-    // File: MasterDataService.java
 
     @Transactional(readOnly = true)
     public List<KategoriDto> getKategoriManagedByUser() {
@@ -182,15 +185,23 @@ public class MasterDataService {
         return userRepository.findByNim(username).or(() -> userRepository.findByEmail(username)).orElseThrow(() -> new RuntimeException("User login tidak ditemukan"));
     }
 
+    // === [PERBAIKAN UTAMA] ===
     private KategoriDto toDto(Kategori k) {
+        // Hitung total uang valid dari database menggunakan TransaksiRepository
+        BigDecimal totalTerkumpul = transaksiRepository.sumTotalValidByKategori(k.getId());
+
+        // Handle jika null (belum ada transaksi valid)
+        if (totalTerkumpul == null) {
+            totalTerkumpul = BigDecimal.ZERO;
+        }
+
         return KategoriDto.builder()
                 .id(k.getId())
                 .nama(k.getNama())
                 .keterangan(k.getKeterangan())
                 .level(k.getLevel())
                 .nominal(k.getNominal() != null ? k.getNominal() : BigDecimal.ZERO)
-                // PENTING: Kirim angka 0 untuk mencegah aplikasi Android blank
-                .totalTerkumpul(BigDecimal.ZERO)
+                .totalTerkumpul(totalTerkumpul) // Masukkan hasil hitungan real ke DTO
                 .build();
     }
 
