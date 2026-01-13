@@ -13,9 +13,8 @@ public class TransaksiResponse {
     private String statusValidasi; // Contoh: PENDING, VALID, REJECTED
     private String jenisTransaksi; // Contoh: PEMASUKAN, PENGELUARAN
     private Instant tanggalBayar;
-
-    // === Bukti Bayar (Penting untuk Android) ===
     private String buktiBayar;
+    private String catatanAdmin;
 
     // === ID Relasi (Untuk referensi database) ===
     private Long idUser;

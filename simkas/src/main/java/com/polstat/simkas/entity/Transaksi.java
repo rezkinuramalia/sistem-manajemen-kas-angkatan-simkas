@@ -60,12 +60,12 @@ public class Transaksi {
     @Column(name = "metode_pembayaran")
     private String metodePembayaran;
 
-    // === BAGIAN INI YANG PENTING DIPERBAIKI ===
-    // Sebelumnya namanya buktiUrl, kita ganti jadi buktiBayar
-    // agar cocok dengan Controller dan DTO
     @Column(name = "bukti_bayar")
     private String buktiBayar;
-    // ==========================================
+
+    // Field untuk menyimpan catatan dari Admin/Bendahara
+    @Column(name = "catatan_admin", length = 500)
+    private String catatanAdmin;
 
     @Column(columnDefinition = "TEXT")
     private String keterangan;

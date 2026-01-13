@@ -153,9 +153,10 @@ public class TransaksiController {
     @PreAuthorize("hasAnyAuthority('ADMIN_ANGKATAN', 'BENDAHARA_KELAS')")
     public ResponseEntity<TransaksiResponse> validasiTransaksi( // ✅ Fix: TransaksiResponse
                                                                 @PathVariable Long id,
-                                                                @RequestParam String status
+                                                                @RequestParam String status,
+                                                                @RequestParam(required = false) String catatan
     ) {
-        return ResponseEntity.ok(transaksiService.validasiTransaksi(id, status));
+        return ResponseEntity.ok(transaksiService.validasiTransaksi(id, status, catatan));
     }
 
     // Endpoint Get Pending by Kategori

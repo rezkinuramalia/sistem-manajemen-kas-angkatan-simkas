@@ -41,9 +41,7 @@ public class TransaksiService {
         this.activityLogRepository = activityLogRepository;
     }
 
-    // ========================
-    // SUPPORT METHODS
-    // ========================
+    // ... (SUPPORT METHODS dan LOGIC DASHBOARD tetap sama, tidak diubah) ...
     public User getUserByUsername(String username) {
         return userRepository.findByNim(username)
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
@@ -67,17 +65,14 @@ public class TransaksiService {
         }
     }
 
-    // ========================
-    // LOGIC DASHBOARD / LIST DATA
-    // ========================
     public List<Transaksi> findByUserIdAndActor(Long userId, User actor) {
-        if (actor.getRole().getId() == 1) { // ADMIN
+        if (actor.getRole().getId() == 1) {
             if (actor.getAngkatan() == null) return new ArrayList<>();
             return transaksiRepository.findBendaharaTransactionsByAngkatan(actor.getAngkatan().getId());
-        } else if (actor.getRole().getId() == 2) { // BENDAHARA
+        } else if (actor.getRole().getId() == 2) {
             if (actor.getKelas() == null) return new ArrayList<>();
             return transaksiRepository.findMahasiswaTransactionsByKelas(actor.getKelas().getId());
-        } else { // MAHASISWA
+        } else {
             if (!actor.getId().equals(userId)) {
                 throw new RuntimeException("Kamu tidak boleh lihat transaksi orang lain!");
             }
@@ -85,9 +80,6 @@ public class TransaksiService {
         }
     }
 
-    // ========================
-    // GET HISTORY (Android)
-    // ========================
     public List<HistoryTransaksi> getHistoryByUserId(Long userId) {
         List<Transaksi> list = transaksiRepository.findByUserIdOrderByTanggalBayarDesc(userId);
         return list.stream().map(t -> {
@@ -103,9 +95,7 @@ public class TransaksiService {
         }).collect(Collectors.toList());
     }
 
-    // ========================
-    // CREATE TRANSAKSI
-    // ========================
+    // ... (CREATE, UPDATE, DELETE methods tetap sama) ...
     @Transactional
     public Transaksi createTransaksiByRole(TransaksiRequest req, String nim) {
         User actor = getUserByUsername(nim);
@@ -115,9 +105,6 @@ public class TransaksiService {
         return createTransaksiInternal(req, actor);
     }
 
-    // ========================
-    // UPDATE, DELETE, VALIDATE
-    // ========================
     @Transactional
     public Transaksi updateTransaksiByRole(Long id, TransaksiRequest req, String nim) {
         User actor = getUserByUsername(nim);
@@ -156,8 +143,7 @@ public class TransaksiService {
         return updated;
     }
 
-    // Endpoint Validasi (Return DTO)
-    public TransaksiResponse validasiTransaksi(Long idTransaksi, String statusBaru) {
+    public TransaksiResponse validasiTransaksi(Long idTransaksi, String statusBaru, String catatan) {
         Transaksi transaksi = transaksiRepository.findById(idTransaksi)
                 .orElseThrow(() -> new RuntimeException("Transaksi tidak ditemukan"));
 
@@ -165,13 +151,15 @@ public class TransaksiService {
             throw new RuntimeException("Status tidak valid! Hanya boleh VALID atau REJECTED.");
         }
         transaksi.setStatusValidasi(Transaksi.StatusValidasi.valueOf(statusBaru.toUpperCase()));
+
+        if (catatan != null && !catatan.isEmpty()) {
+            transaksi.setCatatanAdmin(catatan);
+        }
+
         transaksiRepository.save(transaksi);
         return toDto(transaksi);
     }
 
-    // ========================
-    // LOGIC PER KATEGORI (WADAH)
-    // ========================
     @Transactional(readOnly = true)
     public List<TransaksiResponse> getTransaksiByKategori(Long idKategori) {
         List<Transaksi> list = transaksiRepository.findByKategoriId(idKategori);
@@ -180,11 +168,32 @@ public class TransaksiService {
                 .collect(Collectors.toList());
     }
 
+    // =================================================================
+    // [PERBAIKAN LOGIKA] Mengambil SEMUA transaksi tapi DIURUTKAN
+    // PENDING di atas, VALID/REJECTED di bawah
+    // =================================================================
     @Transactional(readOnly = true)
     public List<TransaksiResponse> getPendingTransaksiByKategori(Long idKategori) {
-        return transaksiRepository.findAll().stream()
-                .filter(t -> t.getKategori() != null && t.getKategori().getId().equals(idKategori))
-                .filter(t -> t.getStatusValidasi() != null && "PENDING".equals(t.getStatusValidasi().name()))
+        // Ambil SEMUA transaksi berdasarkan kategori
+        List<Transaksi> list = transaksiRepository.findByKategoriId(idKategori);
+
+        // Sorting Custom
+        list.sort((t1, t2) -> {
+            String s1 = t1.getStatusValidasi() != null ? t1.getStatusValidasi().name() : "PENDING";
+            String s2 = t2.getStatusValidasi() != null ? t2.getStatusValidasi().name() : "PENDING";
+
+            boolean p1 = "PENDING".equals(s1);
+            boolean p2 = "PENDING".equals(s2);
+
+            // Jika status beda (satu pending, satu tidak)
+            if (p1 && !p2) return -1; // t1 (pending) naik ke atas
+            if (!p1 && p2) return 1;  // t2 (pending) naik ke atas
+
+            // Jika status sama, urutkan berdasarkan waktu (Terbaru di atas)
+            return t2.getCreatedAt().compareTo(t1.getCreatedAt());
+        });
+
+        return list.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }
@@ -193,9 +202,7 @@ public class TransaksiService {
         return transaksiRepository.sumTotalValidByKategori(idKategori);
     }
 
-    // ========================
-    // HELPER METHODS
-    // ========================
+    // ... (Helper Methods Create Internal, Log, toDto tetap sama) ...
     @Transactional
     private Transaksi createTransaksiInternal(TransaksiRequest req, User actor) {
         Transaksi t = new Transaksi();
@@ -248,10 +255,9 @@ public class TransaksiService {
         r.setJenisTransaksi(t.getJenisTransaksi());
         r.setStatusValidasi(t.getStatusValidasi() != null ? t.getStatusValidasi().name() : null);
         r.setBuktiBayar(t.getBuktiBayar());
+        r.setCatatanAdmin(t.getCatatanAdmin());
 
-        // Data tambahan untuk Dashboard/Detail
         if (t.getUser() != null) {
-            // ✅ PERBAIKAN: getNamaLengkap() diganti menjadi getNama()
             r.setNamaPengirim(t.getUser().getNama());
             r.setNimPengirim(t.getUser().getNim());
         }
