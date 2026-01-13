@@ -16,9 +16,13 @@ public class JwtUtil {
     private final Key key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
 
     public String generateToken(String username, String role) {
+        // Buat Claims map untuk menyimpan data role
+        java.util.Map<String, Object> claims = new java.util.HashMap<>();
+        claims.put("role", role); // MASUKKAN ROLE KEDALAM TOKEN
+
         return Jwts.builder()
+                .setClaims(claims) // SET CLAIMS DISINI
                 .setSubject(username)
-                .claim("role", role)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(key, SignatureAlgorithm.HS256)

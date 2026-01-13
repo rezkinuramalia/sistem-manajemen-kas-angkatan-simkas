@@ -54,12 +54,13 @@ public class JwtConfig extends OncePerRequestFilter {
 
                     // PERBAIKAN: Pastikan role tidak null sebelum membuat Authority
                     // Gunakan nama role mentah karena di SecurityConfig Anda pakai hasAnyAuthority('BENDAHARA_KELAS')
+                    // Cari baris yang membuat authorities, ganti dengan ini:
                     List<SimpleGrantedAuthority> authorities = (role != null && !role.isEmpty())
-                            ? List.of(new SimpleGrantedAuthority(role))
+                            ? List.of(new SimpleGrantedAuthority(role)) // Sesuai dengan hasAnyAuthority di SecurityConfig
                             : Collections.emptyList();
 
-                    // Debugging: Print ke console backend untuk memastikan role terbaca
-                    System.out.println("🔍 JWT Check -> User: " + username + " | Role: " + role);
+// Debugging: Tambahkan baris ini untuk melihat apakah role berhasil dibaca di Terminal IntelliJ
+                    System.out.println("🔍 JWT Check -> User: " + username + " | Authority: " + authorities);
 
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             username,

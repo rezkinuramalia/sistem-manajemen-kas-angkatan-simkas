@@ -2,13 +2,13 @@ package com.polstat.simkas.service;
 
 import com.polstat.simkas.dto.HistoryTransaksi;
 import com.polstat.simkas.dto.TransaksiRequest;
-import com.polstat.simkas.dto.TransaksiResponse; // ✅ Fix: Gunakan TransaksiResponse
+import com.polstat.simkas.dto.TransaksiResponse;
 import com.polstat.simkas.entity.*;
 import com.polstat.simkas.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal; // ✅ Fix: Import BigDecimal
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,14 +67,6 @@ public class TransaksiService {
         }
     }
 
-    private List<Transaksi> filterByBulanJenisTahun(List<Transaksi> list, Integer bulan, Integer tahun, String jenisTransaksi) {
-        return list.stream()
-                .filter(t -> (tahun == null || t.getTahunKas().equals(tahun)))
-                .filter(t -> (bulan == null || t.getBulanKas().equals(bulan)))
-                .filter(t -> (jenisTransaksi == null || t.getJenisTransaksi().equalsIgnoreCase(jenisTransaksi)))
-                .collect(Collectors.toList());
-    }
-
     // ========================
     // LOGIC DASHBOARD / LIST DATA
     // ========================
@@ -93,9 +85,9 @@ public class TransaksiService {
         }
     }
 
-    // =================================================================
-    // GET HISTORY (Dipanggil Controller untuk Android)
-    // =================================================================
+    // ========================
+    // GET HISTORY (Android)
+    // ========================
     public List<HistoryTransaksi> getHistoryByUserId(Long userId) {
         List<Transaksi> list = transaksiRepository.findByUserIdOrderByTanggalBayarDesc(userId);
         return list.stream().map(t -> {
@@ -123,21 +115,6 @@ public class TransaksiService {
         return createTransaksiInternal(req, actor);
     }
 
-    @Transactional
-    public Transaksi createTransaksiAdminAngkatan(TransaksiRequest req, String nim) {
-        User admin = getUserByUsername(nim);
-        if (!"ADMIN_ANGKATAN".equals(admin.getRole().getName())) {
-            throw new RuntimeException("Hanya admin angkatan yang bisa pakai endpoint ini");
-        }
-        User payer = userRepository.findById(req.getIdUser())
-                .orElseThrow(() -> new RuntimeException("User pembayar tidak ditemukan"));
-        if (payer.getKelas() == null) {
-            throw new RuntimeException("User pembayar belum memiliki kelas");
-        }
-        req.setIdKelas(payer.getKelas().getId());
-        return createTransaksiInternal(req, admin);
-    }
-
     // ========================
     // UPDATE, DELETE, VALIDATE
     // ========================
@@ -147,9 +124,6 @@ public class TransaksiService {
         Transaksi transaksi = transaksiRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Transaksi tidak ditemukan"));
 
-        if (actor.getRole().getId() == 2 && !transaksi.getKelas().getId().equals(actor.getKelas().getId())) {
-            throw new RuntimeException("Bendahara hanya bisa mengupdate transaksi untuk kelasnya sendiri");
-        }
         if (req.getNominal() != null) transaksi.setNominal(req.getNominal());
         if (req.getKeterangan() != null) transaksi.setKeterangan(req.getKeterangan());
         if (req.getIdKategori() != null)
@@ -166,26 +140,15 @@ public class TransaksiService {
         User actor = getUserByUsername(nim);
         Transaksi transaksi = transaksiRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Transaksi tidak ditemukan"));
-
-        if (actor.getRole().getId() == 2 && !transaksi.getKelas().getId().equals(actor.getKelas().getId())) {
-            throw new RuntimeException("Bendahara hanya bisa menghapus transaksi untuk kelasnya sendiri");
-        }
         transaksiRepository.delete(transaksi);
         saveActivityLog(actor, "DELETE_TRANSAKSI", id);
     }
 
-    // ========================
-    // LOGIC VALIDASI (TERIMA/TOLAK)
-    // ========================
     @Transactional
     public Transaksi validateTransaksi(Long id, String status, String nim) {
         User actor = getUserByUsername(nim);
         Transaksi transaksi = transaksiRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Transaksi tidak ditemukan"));
-
-        if (actor.getRole().getId() == 2 && !transaksi.getKelas().getId().equals(actor.getKelas().getId())) {
-            throw new RuntimeException("Bendahara hanya bisa memvalidasi transaksi kelasnya");
-        }
 
         transaksi.setStatusValidasi(Transaksi.StatusValidasi.valueOf(status.toUpperCase()));
         Transaksi updated = transaksiRepository.save(transaksi);
@@ -193,7 +156,7 @@ public class TransaksiService {
         return updated;
     }
 
-    // Method Baru: Return DTO untuk Endpoint Validasi
+    // Endpoint Validasi (Return DTO)
     public TransaksiResponse validasiTransaksi(Long idTransaksi, String statusBaru) {
         Transaksi transaksi = transaksiRepository.findById(idTransaksi)
                 .orElseThrow(() -> new RuntimeException("Transaksi tidak ditemukan"));
@@ -201,15 +164,22 @@ public class TransaksiService {
         if (!"VALID".equalsIgnoreCase(statusBaru) && !"REJECTED".equalsIgnoreCase(statusBaru)) {
             throw new RuntimeException("Status tidak valid! Hanya boleh VALID atau REJECTED.");
         }
-
-        // ✅ Fix: Convert String ke Enum
         transaksi.setStatusValidasi(Transaksi.StatusValidasi.valueOf(statusBaru.toUpperCase()));
         transaksiRepository.save(transaksi);
-
-        return toDto(transaksi); // ✅ Fix: Panggil method toDto di bawah
+        return toDto(transaksi);
     }
 
-    // Method Baru: Get Pending List
+    // ========================
+    // LOGIC PER KATEGORI (WADAH)
+    // ========================
+    @Transactional(readOnly = true)
+    public List<TransaksiResponse> getTransaksiByKategori(Long idKategori) {
+        List<Transaksi> list = transaksiRepository.findByKategoriId(idKategori);
+        return list.stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
     @Transactional(readOnly = true)
     public List<TransaksiResponse> getPendingTransaksiByKategori(Long idKategori) {
         return transaksiRepository.findAll().stream()
@@ -219,13 +189,8 @@ public class TransaksiService {
                 .collect(Collectors.toList());
     }
 
-    // Method Baru: Hitung Total Valid
     public BigDecimal hitungTotalPemasukanKategori(Long idKategori) {
-        return transaksiRepository.findAll().stream()
-                .filter(t -> t.getKategori() != null && t.getKategori().getId().equals(idKategori))
-                .filter(t -> t.getStatusValidasi() != null && "VALID".equals(t.getStatusValidasi().name()))
-                .map(Transaksi::getNominal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return transaksiRepository.sumTotalValidByKategori(idKategori);
     }
 
     // ========================
@@ -273,7 +238,6 @@ public class TransaksiService {
         activityLogRepository.save(log);
     }
 
-    // ✅ Fix: Method Helper toDto yang sebelumnya hilang
     private TransaksiResponse toDto(Transaksi t) {
         TransaksiResponse r = new TransaksiResponse();
         r.setId(t.getId());
@@ -284,6 +248,16 @@ public class TransaksiService {
         r.setJenisTransaksi(t.getJenisTransaksi());
         r.setStatusValidasi(t.getStatusValidasi() != null ? t.getStatusValidasi().name() : null);
         r.setBuktiBayar(t.getBuktiBayar());
+
+        // Data tambahan untuk Dashboard/Detail
+        if (t.getUser() != null) {
+            // ✅ PERBAIKAN: getNamaLengkap() diganti menjadi getNama()
+            r.setNamaPengirim(t.getUser().getNama());
+            r.setNimPengirim(t.getUser().getNim());
+        }
+        if (t.getKelas() != null) r.setNamaKelas(t.getKelas().getNama());
+        if (t.getKategori() != null) r.setNamaWadah(t.getKategori().getNama());
+
         return r;
     }
 }

@@ -1,4 +1,3 @@
-// File: src/main/java/com/polstat/simkas/repository/TransaksiRepository.java
 package com.polstat.simkas.repository;
 
 import com.polstat.simkas.entity.Transaksi;
@@ -25,15 +24,16 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long> {
     List<Transaksi> findByAngkatanId(Long angkatanId);
     List<Transaksi> findByAngkatanIdAndKelasId(Long angkatanId, Long kelasId);
 
+    // ✅ TAMBAHAN BARU: Cari berdasarkan ID Kategori (Wadah)
+    List<Transaksi> findByKategoriId(Long kategoriId);
+
     // ==========================================
     // 2. LOGIKA BERJENJANG (Hierarki Role)
     // ==========================================
 
-    // Untuk BENDAHARA KELAS: Hanya melihat transaksi dari ANGGOTA (Mahasiswa) di kelasnya
     @Query("SELECT t FROM Transaksi t WHERE t.kelas.id = :kelasId AND t.user.role.name = 'ANGGOTA'")
     List<Transaksi> findMahasiswaTransactionsByKelas(@Param("kelasId") Long kelasId);
 
-    // Untuk ADMIN ANGKATAN: Hanya melihat transaksi setoran dari BENDAHARA_KELAS
     @Query("SELECT t FROM Transaksi t WHERE t.angkatan.id = :angkatanId AND t.user.role.name = 'BENDAHARA_KELAS'")
     List<Transaksi> findBendaharaTransactionsByAngkatan(@Param("angkatanId") Long angkatanId);
 
@@ -41,19 +41,15 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long> {
     // 3. DASHBOARD GLOBAL (Total & Pending)
     // ==========================================
 
-    // Hitung Total Nominal per Kelas (Hanya yang VALID)
     @Query("SELECT COALESCE(SUM(t.nominal), 0) FROM Transaksi t WHERE t.kelas.id = :kelasId AND t.jenisTransaksi = :jenisTransaksi AND t.statusValidasi = 'VALID'")
     BigDecimal sumNominalByKelasAndJenis(@Param("kelasId") Long kelasId, @Param("jenisTransaksi") String jenisTransaksi);
 
-    // Hitung Total Nominal per Angkatan (Hanya yang VALID)
     @Query("SELECT COALESCE(SUM(t.nominal), 0) FROM Transaksi t WHERE t.angkatan.id = :angkatanId AND t.jenisTransaksi = :jenisTransaksi AND t.statusValidasi = 'VALID'")
     BigDecimal sumNominalByAngkatanAndJenis(@Param("angkatanId") Long angkatanId, @Param("jenisTransaksi") String jenisTransaksi);
 
-    // Hitung Jumlah Menunggu Validasi di Kelas
     @Query("SELECT COUNT(t) FROM Transaksi t WHERE t.kelas.id = :kelasId AND t.statusValidasi = 'PENDING'")
     Long countPendingByKelas(@Param("kelasId") Long kelasId);
 
-    // Hitung Jumlah Menunggu Validasi di Angkatan
     @Query("SELECT COUNT(t) FROM Transaksi t WHERE t.angkatan.id = :angkatanId AND t.statusValidasi = 'PENDING'")
     Long countPendingByAngkatan(@Param("angkatanId") Long angkatanId);
 
@@ -61,7 +57,6 @@ public interface TransaksiRepository extends JpaRepository<Transaksi, Long> {
     // 4. DASHBOARD PER WADAH (KATEGORI)
     // ==========================================
 
-    // Hitung total uang yang SUDAH VALID untuk satu Kategori (Tempat Kumpul) tertentu.
     @Query("SELECT COALESCE(SUM(t.nominal), 0) FROM Transaksi t WHERE t.kategori.id = :kategoriId AND t.statusValidasi = 'VALID'")
     BigDecimal sumTotalValidByKategori(@Param("kategoriId") Long kategoriId);
 }

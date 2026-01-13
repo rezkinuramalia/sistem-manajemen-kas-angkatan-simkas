@@ -184,4 +184,11 @@ public class TransaksiController {
         r.setBuktiBayar(t.getBuktiBayar());
         return r;
     }
+
+    // Endpoint untuk melihat siapa saja yang sudah mengisi formulir di wadah ini
+    @GetMapping("/kategori/{kategoriId}")
+    @PreAuthorize("hasAnyAuthority('BENDAHARA_KELAS','ADMIN_ANGKATAN')")
+    public ResponseEntity<List<TransaksiResponse>> getByKategori(@PathVariable Long kategoriId) {
+        return ResponseEntity.ok(transaksiService.getTransaksiByKategori(kategoriId));
+    }
 }

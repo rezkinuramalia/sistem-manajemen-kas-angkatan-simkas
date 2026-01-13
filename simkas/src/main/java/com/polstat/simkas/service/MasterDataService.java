@@ -88,48 +88,32 @@ public class MasterDataService {
         }
     }
 
+    // File: MasterDataService.java
+
     @Transactional(readOnly = true)
     public List<KategoriDto> getKategoriManagedByUser() {
         User user = getCurrentUser();
         String role = user.getRole().getName();
-
-        if ("ADMIN_ANGKATAN".equals(role)) {
-            return kategoriRepository.findByLevel("ANGKATAN")
+        // Beranda: Bendahara melihat wadah KELAS miliknya
+        if ("BENDAHARA_KELAS".equals(role)) {
+            return kategoriRepository.findByLevelAndIdKelasPemilik("KELAS", user.getKelas().getId())
                     .stream().map(this::toDto).collect(Collectors.toList());
-        } else if ("BENDAHARA_KELAS".equals(role)) {
-            if (user.getKelas() == null) {
-                System.out.println("DEBUG: Bendahara has NO CLASS! List Empty.");
-                return List.of();
-            }
-            System.out.println("DEBUG: Fetching Managed for Kelas ID: " + user.getKelas().getId());
-            List<KategoriDto> list = kategoriRepository.findByLevelAndIdKelasPemilik("KELAS", user.getKelas().getId())
-                    .stream().map(this::toDto).collect(Collectors.toList());
-            System.out.println("DEBUG: Found " + list.size() + " categories.");
-            return list;
         }
-        return List.of();
+        // Admin melihat wadah ANGKATAN buatannya
+        return kategoriRepository.findByLevel("ANGKATAN").stream().map(this::toDto).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<KategoriDto> getKategoriForPaymentByUser() {
         User user = getCurrentUser();
         String role = user.getRole().getName();
-
+        // Menu Bayar: Bendahara melihat wadah ANGKATAN untuk setor ke Admin
         if ("BENDAHARA_KELAS".equals(role)) {
-            return kategoriRepository.findByLevel("ANGKATAN")
-                    .stream().map(this::toDto).collect(Collectors.toList());
-        } else if ("ANGGOTA".equals(role)) {
-            if (user.getKelas() == null) {
-                System.out.println("DEBUG: Mahasiswa has NO CLASS! List Empty.");
-                return List.of();
-            }
-            System.out.println("DEBUG: Fetching Payment for Kelas ID: " + user.getKelas().getId());
-            List<KategoriDto> list = kategoriRepository.findByLevelAndIdKelasPemilik("KELAS", user.getKelas().getId())
-                    .stream().map(this::toDto).collect(Collectors.toList());
-            System.out.println("DEBUG: Found " + list.size() + " items to pay.");
-            return list;
+            return kategoriRepository.findByLevel("ANGKATAN").stream().map(this::toDto).collect(Collectors.toList());
         }
-        return List.of();
+        // Mahasiswa melihat wadah KELAS milik bendaharanya
+        return kategoriRepository.findByLevelAndIdKelasPemilik("KELAS", user.getKelas().getId())
+                .stream().map(this::toDto).collect(Collectors.toList());
     }
 
     // Helper Methods standard (Update, Delete, etc)

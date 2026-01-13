@@ -31,6 +31,9 @@ public class ActivityLog {
     @Column(columnDefinition = "json")
     private String payload; // store JSON as string
 
-    @Column(name = "created_at", updatable = false)
+    // === PERBAIKAN DISINI ===
+    // Tambahkan @Builder.Default agar nilai Instant.now() tidak null saat menggunakan builder()
+    @Builder.Default
+    @Column(name = "created_at", updatable = false, nullable = false)
     private Instant createdAt = Instant.now();
 }

@@ -31,18 +31,24 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 1. Auth public
                         .requestMatchers("/api/auth/**").permitAll()
 
-                        // 1. IZINKAN GET (Ambil List) untuk SEMUA yang sudah login
+                        // 2. Master Data (Kategori)
                         .requestMatchers(HttpMethod.GET, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS", "ANGGOTA")
-
-                        // 2. IZINKAN POST, PUT, DELETE hanya untuk Admin/Bendahara
                         .requestMatchers(HttpMethod.POST, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS")
                         .requestMatchers(HttpMethod.PUT, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS")
                         .requestMatchers(HttpMethod.DELETE, "/api/master/kategori/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS")
 
-                        // 3. IZINKAN AKSES TRANSAKSI & VALIDASI
+                        // 3. TRANSAKSI (PERBAIKAN DISINI)
+                        // Izinkan POST ke /api/transaksi (tanpa /**) untuk submit form
+                        .requestMatchers(HttpMethod.POST, "/api/transaksi").hasAnyAuthority("ANGGOTA", "BENDAHARA_KELAS", "ADMIN_ANGKATAN")
+
+                        // Izinkan endpoint transaksi lainnya (history, validasi, dll)
                         .requestMatchers("/api/transaksi/**").hasAnyAuthority("ADMIN_ANGKATAN", "BENDAHARA_KELAS", "ANGGOTA")
+
+                        // 4. File Uploads (Agar gambar bisa diakses/didownload jika perlu)
+                        .requestMatchers("/uploads/**").permitAll()
 
                         .anyRequest().authenticated()
                 )
