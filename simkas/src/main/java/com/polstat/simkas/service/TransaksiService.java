@@ -174,10 +174,8 @@ public class TransaksiService {
     // =================================================================
     @Transactional(readOnly = true)
     public List<TransaksiResponse> getPendingTransaksiByKategori(Long idKategori) {
-        // Ambil SEMUA transaksi berdasarkan kategori
         List<Transaksi> list = transaksiRepository.findByKategoriId(idKategori);
 
-        // Sorting Custom
         list.sort((t1, t2) -> {
             String s1 = t1.getStatusValidasi() != null ? t1.getStatusValidasi().name() : "PENDING";
             String s2 = t2.getStatusValidasi() != null ? t2.getStatusValidasi().name() : "PENDING";
@@ -185,11 +183,9 @@ public class TransaksiService {
             boolean p1 = "PENDING".equals(s1);
             boolean p2 = "PENDING".equals(s2);
 
-            // Jika status beda (satu pending, satu tidak)
-            if (p1 && !p2) return -1; // t1 (pending) naik ke atas
-            if (!p1 && p2) return 1;  // t2 (pending) naik ke atas
+            if (p1 && !p2) return -1;
+            if (!p1 && p2) return 1;
 
-            // Jika status sama, urutkan berdasarkan waktu (Terbaru di atas)
             return t2.getCreatedAt().compareTo(t1.getCreatedAt());
         });
 
@@ -250,7 +246,10 @@ public class TransaksiService {
         r.setId(t.getId());
         r.setIdUser(t.getUser() != null ? t.getUser().getId() : null);
         r.setNominal(t.getNominal());
-        r.setTanggalBayar(t.getTanggalBayar());
+
+        // [PERBAIKAN ERROR DI SINI] Konversi Instant ke String
+        r.setTanggalBayar(t.getTanggalBayar() != null ? t.getTanggalBayar().toString() : null);
+
         r.setKeterangan(t.getKeterangan());
         r.setJenisTransaksi(t.getJenisTransaksi());
         r.setStatusValidasi(t.getStatusValidasi() != null ? t.getStatusValidasi().name() : null);

@@ -2,7 +2,8 @@ package com.polstat.simkas.dto;
 
 import lombok.Data;
 import java.math.BigDecimal;
-import java.time.Instant;
+// Hapus import Instant, ganti String untuk tanggalBayar agar kompatibel dengan Android
+// import java.time.Instant;
 
 @Data
 public class TransaksiResponse {
@@ -10,13 +11,16 @@ public class TransaksiResponse {
     private Long id;
     private BigDecimal nominal;
     private String keterangan;
-    private String statusValidasi; // Contoh: PENDING, VALID, REJECTED
-    private String jenisTransaksi; // Contoh: PEMASUKAN, PENGELUARAN
-    private Instant tanggalBayar;
+    private String statusValidasi;
+    private String jenisTransaksi;
+
+    // [PERBAIKAN] Ubah Instant ke String agar Android bisa membacanya tanpa error parsing
+    private String tanggalBayar;
+
     private String buktiBayar;
     private String catatanAdmin;
 
-    // === ID Relasi (Untuk referensi database) ===
+    // === ID Relasi ===
     private Long idUser;
     private Long idInputBy;
     private Long idKelas;
@@ -27,8 +31,7 @@ public class TransaksiResponse {
     private Integer bulanKas;
     private Integer tahunKas;
 
-    // === Data Tambahan (Optional/Untuk Tampilan Dashboard) ===
-    // Field ini berguna jika Controller mengisinya agar frontend tidak perlu request ulang
+    // === Data Tambahan ===
     private String namaPengirim;
     private String nimPengirim;
     private String namaKelas;

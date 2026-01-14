@@ -178,11 +178,24 @@ public class TransaksiController {
         r.setId(t.getId());
         r.setIdUser(t.getUser() != null ? t.getUser().getId() : null);
         r.setNominal(t.getNominal());
-        r.setTanggalBayar(t.getTanggalBayar());
+
+        // [PERBAIKAN UTAMA] Convert Instant ke String agar Frontend tidak Error Parsing
+        r.setTanggalBayar(t.getTanggalBayar() != null ? t.getTanggalBayar().toString() : null);
+
         r.setKeterangan(t.getKeterangan());
         r.setJenisTransaksi(t.getJenisTransaksi());
         r.setStatusValidasi(t.getStatusValidasi() != null ? t.getStatusValidasi().name() : null);
         r.setBuktiBayar(t.getBuktiBayar());
+        r.setCatatanAdmin(t.getCatatanAdmin());
+
+        // Isi Data Tambahan (Penting untuk List di Android)
+        if (t.getUser() != null) {
+            r.setNamaPengirim(t.getUser().getNama());
+            r.setNimPengirim(t.getUser().getNim());
+        }
+        if (t.getKelas() != null) r.setNamaKelas(t.getKelas().getNama());
+        if (t.getKategori() != null) r.setNamaWadah(t.getKategori().getNama());
+
         return r;
     }
 
