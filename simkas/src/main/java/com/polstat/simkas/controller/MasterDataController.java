@@ -22,10 +22,13 @@ public class MasterDataController {
     // 1. MANAJEMEN KATEGORI (WADAH KAS)
     // =======================================================
 
+    // [DIPERBAIKI] Menggunakan method yang benar dari Service
     @GetMapping("/kategori")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KategoriDto>> getAllKategoriGeneral() {
-        return ResponseEntity.ok(masterDataService.getAllKategoriSesuaiRole());
+        // GANTI DARI getAllKategoriSesuaiRole() KE getKategoriForPaymentByUser()
+        // Ini agar endpoint default /kategori menampilkan list tagihan yang bisa dibayar user
+        return ResponseEntity.ok(masterDataService.getKategoriForPaymentByUser());
     }
 
     @PostMapping("/kategori")
@@ -34,12 +37,14 @@ public class MasterDataController {
         return ResponseEntity.ok(masterDataService.createKategori(request));
     }
 
+    // Endpoint khusus untuk Menu Beranda (List yang Dikelola/Dibuat sendiri)
     @GetMapping("/kategori/managed")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KategoriDto>> getKategoriManaged() {
         return ResponseEntity.ok(masterDataService.getKategoriManagedByUser());
     }
 
+    // Endpoint khusus untuk Menu Bayar (List yang Harus Dibayar)
     @GetMapping("/kategori/payment")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<KategoriDto>> getKategoriForPayment() {
@@ -75,7 +80,7 @@ public class MasterDataController {
         return ResponseEntity.ok(masterDataService.createKelas(request));
     }
 
-    // [PERBAIKAN UTAMA] Hapus @PreAuthorize agar bisa diakses Publik (Register)
+    // Diakses Publik (Register)
     @GetMapping("/kelas")
     public ResponseEntity<List<KelasDto>> getAllKelas() {
         return ResponseEntity.ok(masterDataService.getAllKelas());
@@ -106,7 +111,7 @@ public class MasterDataController {
         return ResponseEntity.ok(masterDataService.createAngkatan(request));
     }
 
-    // [PERBAIKAN UTAMA] Hapus @PreAuthorize agar bisa diakses Publik (Register)
+    // Diakses Publik (Register)
     @GetMapping("/angkatan")
     public ResponseEntity<List<AngkatanDto>> getAllAngkatan() {
         return ResponseEntity.ok(masterDataService.getAllAngkatan());
