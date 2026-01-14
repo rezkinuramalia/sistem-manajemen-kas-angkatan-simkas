@@ -11,12 +11,11 @@ import java.util.List;
 @Repository
 public interface KategoriRepository extends JpaRepository<Kategori, Long> {
 
-    // Query Manual: Cari semua wadah level ANGKATAN (Milik Admin)
-    @Query("SELECT k FROM Kategori k WHERE k.level = 'ANGKATAN'")
-    List<Kategori> findAllAngkatan();
+    // [SOLUSI AMPUH] Gunakan nativeQuery = true (SQL Murni)
+    // Ini memaksa sistem membaca langsung tabel 'kategori' tanpa mapping rumit
+    @Query(value = "SELECT * FROM kategori WHERE level = 'ANGKATAN'", nativeQuery = true)
+    List<Kategori> findAllAngkatanNative();
 
-    // Query Manual: Cari wadah level KELAS milik ID Kelas tertentu (Milik Bendahara)
-    // Ini memperbaiki masalah list kosong karena salah baca nama kolom
-    @Query("SELECT k FROM Kategori k WHERE k.level = 'KELAS' AND k.idKelasPemilik = :idKelas")
-    List<Kategori> findByKelasMilik(@Param("idKelas") Long idKelas);
+    @Query(value = "SELECT * FROM kategori WHERE level = 'KELAS' AND id_kelas_pemilik = :idKelas", nativeQuery = true)
+    List<Kategori> findByKelasMilikNative(@Param("idKelas") Long idKelas);
 }

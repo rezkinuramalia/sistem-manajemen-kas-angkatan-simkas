@@ -23,7 +23,6 @@ public class MasterDataService {
     private final UserRepository userRepository;
     private final TransaksiRepository transaksiRepository;
 
-    // Konstanta ID Angkatan 65 (Sesuai kode Anda sebelumnya)
     private static final Long ID_ANGKATAN_65 = 2L;
 
     public MasterDataService(KategoriRepository kategoriRepository,
@@ -39,104 +38,43 @@ public class MasterDataService {
     }
 
     // =======================================================
-    // 1. KATEGORI (WADAH KAS) - CORE LOGIC DIPERBAIKI
+    // 1. KATEGORI (WADAH KAS) - LOGIKA UTAMA
     // =======================================================
 
-    // Custom Comparator: Yang AKTIF (true) di atas, lalu ID terbesar (terbaru) di atas
+    // Comparator: Urutkan yang AKTIF di atas, lalu ID TERBARU di atas
     private final Comparator<KategoriDto> kategoriSorter = (k1, k2) -> {
-        // Handle null safety (anggap true jika null)
         boolean a1 = k1.getAktif() != null ? k1.getAktif() : true;
         boolean a2 = k2.getAktif() != null ? k2.getAktif() : true;
 
-        // Jika status beda, yang aktif (true) duluan
         if (a1 != a2) {
-            return Boolean.compare(a2, a1);
+            return Boolean.compare(a2, a1); // True (Aktif) lebih dulu
         }
-        // Jika status sama, urutkan ID descending (terbaru diatas)
-        return k2.getId().compareTo(k1.getId());
+        return k2.getId().compareTo(k1.getId()); // ID Descending (Terbaru lebih dulu)
     };
 
-    public KategoriDto createKategori(KategoriRequest request) {
-        User user = getCurrentUser();
-        String role = user.getRole().getName();
-        String level;
-        Long idKelasPemilik = null;
-
-        if ("BENDAHARA_KELAS".equals(role)) {
-            level = "KELAS";
-            if (user.getKelas() == null) throw new RuntimeException("Bendahara wajib memiliki Kelas!");
-            idKelasPemilik = user.getKelas().getId(); // [PENTING] Simpan ID Kelas agar muncul di menu Kelola
-        } else if ("ADMIN_ANGKATAN".equals(role)) {
-            level = "ANGKATAN";
-            idKelasPemilik = null; // Admin levelnya angkatan, tidak terikat kelas spesifik
-        } else {
-            throw new RuntimeException("Role tidak memiliki izin membuat wadah.");
-        }
-
-        Kategori kategori = Kategori.builder()
-                .nama(request.getNama())
-                .keterangan(request.getKeterangan())
-                .level(level)
-                .idKelasPemilik(idKelasPemilik)
-                .nominal(request.getNominal() != null ? request.getNominal() : BigDecimal.ZERO)
-                .aktif(true) // [PENTING] Default Aktif saat dibuat
-                .build();
-
-        kategoriRepository.save(kategori);
-        return toDto(kategori);
-    }
-
-    public KategoriDto updateStatusKategori(Long id, Boolean status) {
-        Kategori k = kategoriRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Kategori tidak ditemukan"));
-        k.setAktif(status);
-        kategoriRepository.save(k);
-        return toDto(k);
-    }
-
-    // === LOGIKA TAMPILAN ANDROID ===
-
-    // 1. Menu KELOLA (BERANDA): Menampilkan wadah yang DIBUAT/DIKELOLA User
+    // --- MENU KELOLA (BERANDA): Wadah yang DIBUAT User ---
     @Transactional(readOnly = true)
     public List<KategoriDto> getKategoriManagedByUser() {
         User user = getCurrentUser();
         String role = user.getRole().getName();
         List<Kategori> rawList;
 
-        if ("BENDAHARA_KELAS".equals(role)) {
-            if (user.getKelas() == null) return Collections.emptyList();
+        // DEBUG LOG (Cek di Terminal IntelliJ saat refresh HP)
+        System.out.println("DEBUG KELOLA: User=" + user.getNama() + ", Role=" + role);
 
-            // [FIX] Menggunakan @Query manual 'findByKelasMilik'
-            // Mencari wadah level 'KELAS' yang 'id_kelas_pemilik'-nya sama dengan user
-            rawList = kategoriRepository.findByKelasMilik(user.getKelas().getId());
+        if ("BENDAHARA_KELAS".equals(role)) {
+            if (user.getKelas() == null) {
+                System.out.println("DEBUG: Bendahara ini tidak punya data Kelas!");
+                return Collections.emptyList();
+            }
+            // [FIX] Gunakan 'findByKelasMilikNative' sesuai Repository Anda
+            rawList = kategoriRepository.findByKelasMilikNative(user.getKelas().getId());
 
         } else if ("ADMIN_ANGKATAN".equals(role)) {
-            // [FIX] Menggunakan @Query manual 'findAllAngkatan'
-            // Mencari semua wadah level 'ANGKATAN'
-            rawList = kategoriRepository.findAllAngkatan();
+            // [FIX] Gunakan 'findAllAngkatanNative' sesuai Repository Anda
+            rawList = kategoriRepository.findAllAngkatanNative();
         } else {
             return Collections.emptyList();
-        }
-
-        List<KategoriDto> list = rawList.stream().map(this::toDto).collect(Collectors.toList());
-        list.sort(kategoriSorter); // Urutkan: Aktif dulu, lalu Terbaru
-        return list;
-    }
-
-    // 2. Menu SETOR (BAYAR): Menampilkan wadah tempat User HARUS BAYAR
-    @Transactional(readOnly = true)
-    public List<KategoriDto> getKategoriForPaymentByUser() {
-        User user = getCurrentUser();
-        String role = user.getRole().getName();
-        List<Kategori> rawList;
-
-        if ("BENDAHARA_KELAS".equals(role)) {
-            // Bendahara membayar ke wadah milik Admin (Level ANGKATAN)
-            rawList = kategoriRepository.findAllAngkatan();
-        } else {
-            // Anggota/Mahasiswa membayar ke wadah milik Bendahara (Level KELAS)
-            if (user.getKelas() == null) return Collections.emptyList();
-            rawList = kategoriRepository.findByKelasMilik(user.getKelas().getId());
         }
 
         List<KategoriDto> list = rawList.stream().map(this::toDto).collect(Collectors.toList());
@@ -144,7 +82,32 @@ public class MasterDataService {
         return list;
     }
 
-    // Endpoint General (Opsional/Backup)
+    // --- MENU SETOR (BAYAR): Wadah yang HARUS DIBAYAR User ---
+    @Transactional(readOnly = true)
+    public List<KategoriDto> getKategoriForPaymentByUser() {
+        User user = getCurrentUser();
+        String role = user.getRole().getName();
+        List<Kategori> rawList;
+
+        System.out.println("DEBUG BAYAR: User=" + user.getNama() + ", Role=" + role);
+
+        if ("BENDAHARA_KELAS".equals(role)) {
+            // Bendahara membayar ke wadah Admin (ANGKATAN)
+            // [FIX] Gunakan Method Native
+            rawList = kategoriRepository.findAllAngkatanNative();
+        } else {
+            // Mahasiswa membayar ke wadah Bendahara (KELAS)
+            if (user.getKelas() == null) return Collections.emptyList();
+            // [FIX] Gunakan Method Native
+            rawList = kategoriRepository.findByKelasMilikNative(user.getKelas().getId());
+        }
+
+        List<KategoriDto> list = rawList.stream().map(this::toDto).collect(Collectors.toList());
+        list.sort(kategoriSorter);
+        return list;
+    }
+
+    // --- Endpoint General (Opsional/Backup) ---
     @Transactional(readOnly = true)
     public List<KategoriDto> getAllKategoriSesuaiRole() {
         User user = getCurrentUser();
@@ -159,7 +122,7 @@ public class MasterDataService {
             List<KategoriDto> managed = getKategoriManagedByUser();
             List<KategoriDto> payment = getKategoriForPaymentByUser();
 
-            // Gabungkan dan hilangkan duplikat ID
+            // Gabungkan list dan hapus duplikat
             java.util.Set<Long> ids = new java.util.HashSet<>();
             List<KategoriDto> combined = new java.util.ArrayList<>();
 
@@ -171,7 +134,47 @@ public class MasterDataService {
         }
     }
 
-    // Helper Update/Delete Kategori Biasa
+    // --- Create Kategori ---
+    public KategoriDto createKategori(KategoriRequest request) {
+        User user = getCurrentUser();
+        String role = user.getRole().getName();
+        String level;
+        Long idKelasPemilik = null;
+
+        if ("BENDAHARA_KELAS".equals(role)) {
+            level = "KELAS";
+            if (user.getKelas() == null) throw new RuntimeException("Bendahara wajib punya Kelas!");
+            idKelasPemilik = user.getKelas().getId();
+        } else if ("ADMIN_ANGKATAN".equals(role)) {
+            level = "ANGKATAN";
+            idKelasPemilik = null;
+        } else {
+            throw new RuntimeException("Role tidak diizinkan.");
+        }
+
+        Kategori kategori = Kategori.builder()
+                .nama(request.getNama())
+                .keterangan(request.getKeterangan())
+                .level(level)
+                .idKelasPemilik(idKelasPemilik)
+                .nominal(request.getNominal() != null ? request.getNominal() : BigDecimal.ZERO)
+                .aktif(true) // Default Aktif
+                .build();
+
+        kategoriRepository.save(kategori);
+        return toDto(kategori);
+    }
+
+    // --- Update Status (Nonaktifkan) ---
+    public KategoriDto updateStatusKategori(Long id, Boolean status) {
+        Kategori k = kategoriRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Kategori tidak ditemukan"));
+        k.setAktif(status);
+        kategoriRepository.save(k);
+        return toDto(k);
+    }
+
+    // --- Update Info Kategori ---
     public KategoriDto updateKategori(Long id, KategoriRequest request) {
         Kategori kategori = kategoriRepository.findById(id).orElseThrow(() -> new RuntimeException("Kategori not found"));
         kategori.setNama(request.getNama());
@@ -185,32 +188,25 @@ public class MasterDataService {
 
 
     // =======================================================
-    // 2. KELAS & ANGKATAN (MASTER DATA LAIN)
+    // 2. KELAS & ANGKATAN
     // =======================================================
 
     public KelasDto createKelas(KelasRequest request) {
         Angkatan angkatan = angkatanRepository.findById(ID_ANGKATAN_65)
                 .orElseThrow(() -> new RuntimeException("Angkatan not found"));
-        Kelas kelas = Kelas.builder()
-                .kode(request.getKode())
-                .nama(request.getNama())
-                .angkatan(angkatan)
-                .build();
+        Kelas kelas = Kelas.builder().kode(request.getKode()).nama(request.getNama()).angkatan(angkatan).build();
         kelasRepository.save(kelas);
         return toDto(kelas);
     }
 
     @Transactional(readOnly = true)
     public List<KelasDto> getAllKelas() {
-        // Ambil kelas hanya yang angkatan 65 (Opsional logic)
-        return kelasRepository.findByAngkatanId(ID_ANGKATAN_65).stream()
-                .map(this::toDto).collect(Collectors.toList());
+        return kelasRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<KelasDto> getKelasByAngkatan(Long angkatanId) {
-        return kelasRepository.findByAngkatanId(angkatanId).stream()
-                .map(this::toDto).collect(Collectors.toList());
+        return kelasRepository.findByAngkatanId(angkatanId).stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public KelasDto updateKelas(Long id, KelasRequest request) {
@@ -224,18 +220,14 @@ public class MasterDataService {
     public void deleteKelas(Long id) { kelasRepository.deleteById(id); }
 
     public AngkatanDto createAngkatan(AngkatanRequest request) {
-        Angkatan angkatan = Angkatan.builder()
-                .tahun(request.getTahun())
-                .nama(request.getNama())
-                .build();
+        Angkatan angkatan = Angkatan.builder().tahun(request.getTahun()).nama(request.getNama()).build();
         angkatanRepository.save(angkatan);
         return toDto(angkatan);
     }
 
     @Transactional(readOnly = true)
     public List<AngkatanDto> getAllAngkatan() {
-        return angkatanRepository.findAll().stream()
-                .map(this::toDto).collect(Collectors.toList());
+        return angkatanRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());
     }
 
     public AngkatanDto updateAngkatan(Long id, AngkatanRequest request) {
@@ -250,7 +242,7 @@ public class MasterDataService {
 
 
     // =======================================================
-    // 3. PRIVATE HELPER METHODS (MAPPING & USER)
+    // 3. PRIVATE HELPER (MAPPING DTO)
     // =======================================================
 
     private User getCurrentUser() {
@@ -260,13 +252,11 @@ public class MasterDataService {
                 .orElseThrow(() -> new RuntimeException("User login tidak ditemukan"));
     }
 
-    // === [PERBAIKAN UTAMA: Mapping DTO] ===
+    // [PENTING] Mapping ke KategoriDto (termasuk status aktif)
     private KategoriDto toDto(Kategori k) {
         BigDecimal totalTerkumpul = transaksiRepository.sumTotalValidByKategori(k.getId());
-
         if (totalTerkumpul == null) totalTerkumpul = BigDecimal.ZERO;
 
-        // [FIX] Pastikan field 'aktif' tidak null. Jika DB null, anggap true.
         boolean isAktif = k.getAktif() != null ? k.getAktif() : true;
 
         return KategoriDto.builder()
@@ -276,14 +266,13 @@ public class MasterDataService {
                 .level(k.getLevel())
                 .nominal(k.getNominal() != null ? k.getNominal() : BigDecimal.ZERO)
                 .totalTerkumpul(totalTerkumpul)
-                .aktif(isAktif) // [PENTING] Mengisi field ini agar Android tidak "Nonaktif" terus
+                .aktif(isAktif) // Pastikan field ini terisi!
                 .build();
     }
 
     private KelasDto toDto(Kelas k) {
         Long angkatanId = (k.getAngkatan() != null) ? k.getAngkatan().getId() : null;
         String namaAngkatan = (k.getAngkatan() != null) ? k.getAngkatan().getNama() : "-";
-
         return KelasDto.builder()
                 .id(k.getId())
                 .kode(k.getKode())
@@ -294,10 +283,6 @@ public class MasterDataService {
     }
 
     private AngkatanDto toDto(Angkatan a) {
-        return AngkatanDto.builder()
-                .id(a.getId())
-                .tahun(a.getTahun())
-                .nama(a.getNama())
-                .build();
+        return AngkatanDto.builder().id(a.getId()).tahun(a.getTahun()).nama(a.getNama()).build();
     }
 }
