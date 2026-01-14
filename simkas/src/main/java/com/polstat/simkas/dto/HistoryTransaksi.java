@@ -13,4 +13,5 @@ public class HistoryTransaksi {
     private String statusValidasi; // PENDING, VALID, REJECTED
     private String tanggalBayar;   // Kita kirim sebagai String biar Android mudah bacanya
     private String namaWadah;      // Nama Kategori/Tempat Bayar
+    private String catatanAdmin;
 }

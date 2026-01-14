@@ -91,6 +91,7 @@ public class TransaksiService {
                     .statusValidasi(t.getStatusValidasi() != null ? t.getStatusValidasi().name() : "PENDING")
                     .tanggalBayar(t.getTanggalBayar() != null ? t.getTanggalBayar().toString() : "-")
                     .namaWadah(namaWadah)
+                    .catatanAdmin(t.getCatatanAdmin())
                     .build();
         }).collect(Collectors.toList());
     }
