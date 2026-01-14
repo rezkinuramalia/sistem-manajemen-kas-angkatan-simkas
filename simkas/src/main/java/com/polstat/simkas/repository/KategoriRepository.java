@@ -4,14 +4,19 @@ import com.polstat.simkas.entity.Kategori;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
 import java.util.List;
 
+@Repository
 public interface KategoriRepository extends JpaRepository<Kategori, Long> {
 
-    // Gunakan JPQL eksplisit agar Spring tidak salah tafsir filter
-    @Query("SELECT k FROM Kategori k WHERE k.level = :level")
-    List<Kategori> findByLevel(@Param("level") String level);
+    // Query Manual: Cari semua wadah level ANGKATAN (Milik Admin)
+    @Query("SELECT k FROM Kategori k WHERE k.level = 'ANGKATAN'")
+    List<Kategori> findAllAngkatan();
 
-    @Query("SELECT k FROM Kategori k WHERE k.level = :level AND k.idKelasPemilik = :idKelasPemilik")
-    List<Kategori> findByLevelAndIdKelasPemilik(@Param("level") String level, @Param("idKelasPemilik") Long idKelasPemilik);
+    // Query Manual: Cari wadah level KELAS milik ID Kelas tertentu (Milik Bendahara)
+    // Ini memperbaiki masalah list kosong karena salah baca nama kolom
+    @Query("SELECT k FROM Kategori k WHERE k.level = 'KELAS' AND k.idKelasPemilik = :idKelas")
+    List<Kategori> findByKelasMilik(@Param("idKelas") Long idKelas);
 }

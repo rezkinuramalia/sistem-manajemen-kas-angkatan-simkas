@@ -1,3 +1,4 @@
+// File: simkas/src/main/java/com/polstat/simkas/dto/KategoriDto.java
 package com.polstat.simkas.dto;
 import lombok.Builder;
 import lombok.Data;
@@ -10,6 +11,7 @@ public class KategoriDto {
     private String nama;
     private String keterangan;
     private String level;
-    private BigDecimal nominal;  // ✅ PERBAIKAN: Tambahkan nominal pembayaran
-    private BigDecimal totalTerkumpul; // Total dana yang sudah terkumpul untuk wadah ini
+    private BigDecimal nominal;
+    private BigDecimal totalTerkumpul;
+    private Boolean aktif; // status tempat pembayaran
 }

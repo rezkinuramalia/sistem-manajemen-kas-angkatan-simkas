@@ -1,3 +1,4 @@
+// File: simkas/src/main/java/com/polstat/simkas/entity/Kategori.java
 package com.polstat.simkas.entity;
 
 import jakarta.persistence.*;
@@ -22,19 +23,19 @@ public class Kategori {
 
     private String keterangan;
 
-    // "ANGKATAN" (Dibuat Admin, untuk Bendahara bayar)
-    // "KELAS" (Dibuat Bendahara, untuk Mahasiswa bayar)
     @Column(nullable = false)
     private String level;
 
-    // Jika level="KELAS", ini diisi ID Kelas si Bendahara. Jika Admin, null.
+    @Column(nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal nominal = BigDecimal.ZERO;
+
     private Long idKelasPemilik;
 
-    // --- TAMBAHAN WAJIB (INI YANG BIKIN ERROR) ---
+    // Status Aktif/Nonaktif
     @Column(nullable = false)
-    @Builder.Default // Agar nilai default 0 terpakai jika tidak diisi
-    private BigDecimal nominal = BigDecimal.ZERO;
-    // ---------------------------------------------
+    @Builder.Default
+    private Boolean aktif = true;
 
     @Builder.Default
     @Column(name = "created_at", updatable = false)

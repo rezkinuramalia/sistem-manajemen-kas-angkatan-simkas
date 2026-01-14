@@ -59,6 +59,12 @@ public class MasterDataController {
         return ResponseEntity.ok("Kategori berhasil dihapus");
     }
 
+    @PutMapping("/kategori/{id}/status")
+    @PreAuthorize("hasAnyAuthority('ADMIN_ANGKATAN', 'BENDAHARA_KELAS')")
+    public ResponseEntity<KategoriDto> updateStatusKategori(@PathVariable Long id, @RequestParam Boolean aktif) {
+        return ResponseEntity.ok(masterDataService.updateStatusKategori(id, aktif));
+    }
+
     // =======================================================
     // 2. MANAJEMEN KELAS & ANGKATAN
     // =======================================================
